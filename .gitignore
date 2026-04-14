@@ -1,0 +1,8 @@
+# kiss-claw session data
+.kiss-claw/sessions/
+
+# omc state
+.omc/
+
+# Agent memory
+.claude/agent-memory/

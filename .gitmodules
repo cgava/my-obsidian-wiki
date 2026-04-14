@@ -1,0 +1,9 @@
+[submodule "vendor/obsidian-wiki"]
+	path = vendor/obsidian-wiki
+	url = git@github.com:Ar9av/obsidian-wiki.git
+[submodule "knlg-repo"]
+	path = knlg-repo
+	url = git@github.com:cgava/my-global-knlg-repo.git
+[submodule "vendor/my-claude-minion"]
+	path = vendor/my-claude-minion
+	url = git@github.com:cgava-claudeai/my-claude-minion.git
