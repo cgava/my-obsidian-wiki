@@ -1,0 +1,106 @@
+session: "20260414-202708"
+created: "2026-04-14T20:27:08"
+closed: "2026-04-15T00:05:00"
+reconstructed: true
+reconstructed_from: "claude-session aa8385af-9f2d-49aa-9646-3c7feed1ccce"
+reconstructed_at: "2026-04-15"
+
+need:
+  why: |
+    Raison profonde : comprendre les grands principes d'obsidian-wiki avant de spécifier ses propres exigences différentes — éviter de réinventer la roue, s'inspirer de ce qui existe.
+    Categorie : feature
+  raw: |
+    Je veux faire un POC pour évaluer obsidian-wiki. J'avais déjà fait un plan, mais je n'avais pas assez insisté sur le livrable : il faut un article qui raconte ce qui a été fait pendant la phase et qui explique comment aller voir le résultat (avec Obsidian par exemple), pour bien comprendre ce qui a été fait.
+  elicited: |
+    Formation guidée par l'exploration : chaque phase exécute une fonctionnalité d'obsidian-wiki, puis livre un article-guide wiki documentant le principe, les commandes, comment naviguer le résultat dans Obsidian, et les observations/limites. 12 phases (0-11), chacune avec un livrable article.
+  constraints: |
+    - Le vault est knlg-repo/ directement (pas knlg-repo/vault/)
+    - Le plan précédent (session 20260414-081017) est repris et enrichi avec le livrable article
+    - setup.sh non exécuté (mode interactif, pas nécessaire pour le POC)
+    - .obsidian/ et .omc/ gitignorés dans knlg-repo
+
+log:
+  - agent: "kiss-orchestrator"
+    claude_session: "aa8385af-9f2d-49aa-9646-3c7feed1ccce"
+    timestamp: "2026-04-14T20:27:08Z"
+    task: "INIT — Session créée, plan généré (12 phases)"
+    result: "Plan en 12 phases (0-11), state initialisé, CHECKPOINT créé"
+    children:
+
+      # Phase 0 — Setup & Configuration
+      - agent: "kiss-executor"
+        claude_session: "aa8385af-9f2d-49aa-9646-3c7feed1ccce"
+        timestamp: "2026-04-14T20:35:00Z"
+        task: "Phase 0 — Steps 0.1-0.3 : .env, wiki-setup, vérification"
+        result: ".env corrigé, vault initialisé (11 dossiers, index, log, manifest, taxonomy, config Obsidian), structure vérifiée"
+        children: []
+      - agent: "kiss-executor"
+        claude_session: "aa8385af-9f2d-49aa-9646-3c7feed1ccce"
+        timestamp: "2026-04-14T20:50:00Z"
+        task: "Phase 0 — Analyse setup.sh + commits"
+        result: "setup.sh analysé (interactif, non exécuté pour le POC). 3 commits créés (vault, knlg-repo, parent)."
+        children: []
+      - agent: "kiss-executor"
+        claude_session: "aa8385af-9f2d-49aa-9646-3c7feed1ccce"
+        timestamp: "2026-04-14T21:00:00Z"
+        task: "Phase 0 — Correction structure : vault/ → knlg-repo/ racine"
+        result: "Contenu déplacé de knlg-repo/vault/ vers knlg-repo/. .env corrigé. 2 commits."
+        children: []
+      - agent: "kiss-executor"
+        claude_session: "aa8385af-9f2d-49aa-9646-3c7feed1ccce"
+        timestamp: "2026-04-14T21:10:00Z"
+        task: "Phase 0 — Step 0.4 : rédaction guide/00-setup.md"
+        result: "Article guide 104 lignes créé et commité (3 niveaux submodules). Couvre setup, structure, setup.sh, .env."
+        children: []
+
+      # Phase 1 — Ingest de documents
+      - agent: "kiss-executor"
+        claude_session: "aa8385af-9f2d-49aa-9646-3c7feed1ccce"
+        timestamp: "2026-04-14T21:30:00Z"
+        task: "Phase 1 — Steps 1.1-1.5 : sources, ingest, vérification, delta, raw promotion"
+        result: "3 sources créées. 13 pages wiki (8 concepts, 2 entities, 1 skill, 2 synthesis). Delta SKIP confirmé. Raw promotion OK."
+        children: []
+      - agent: "kiss-executor"
+        claude_session: "aa8385af-9f2d-49aa-9646-3c7feed1ccce"
+        timestamp: "2026-04-14T21:50:00Z"
+        task: "Phase 1 — Step 1.6 : rédaction guide/01-ingest-documents.md"
+        result: "Article guide 183 lignes. 4 commits (sources, ingest, raw promo, guide)."
+        children: []
+
+      # Housekeeping : .obsidian/ et .omc/ gitignorés
+      - agent: "kiss-orchestrator"
+        claude_session: "aa8385af-9f2d-49aa-9646-3c7feed1ccce"
+        timestamp: "2026-04-14T22:00:00Z"
+        task: "Gitignore .obsidian/ et .omc/ dans knlg-repo"
+        result: ".gitignore mis à jour et commité. Working tree propre."
+        children: []
+
+      # Phase 2 — Ingest historique Claude
+      - agent: "kiss-executor"
+        claude_session: "aa8385af-9f2d-49aa-9646-3c7feed1ccce"
+        timestamp: "2026-04-14T22:15:00Z"
+        task: "Phase 2 — Steps 2.1-2.3 : claude-history-ingest, vérification, routeur"
+        result: "6 projets minés depuis ~/.claude/. 17 pages créées (7 projects, 3 concepts, 2 entities, 3 skills, 2 synthesis). Total vault : 30 pages."
+        children: []
+      - agent: "kiss-executor"
+        claude_session: "aa8385af-9f2d-49aa-9646-3c7feed1ccce"
+        timestamp: "2026-04-14T22:40:00Z"
+        task: "Phase 2 — Step 2.4 : rédaction guide/02-history-ingest.md"
+        result: "Article guide 250 lignes, commité."
+        children: []
+
+      # Phase 3 — Data ingest (formats libres)
+      - agent: "kiss-executor"
+        claude_session: "aa8385af-9f2d-49aa-9646-3c7feed1ccce"
+        timestamp: "2026-04-14T23:00:00Z"
+        task: "Phase 3 — Steps 3.1-3.5 : sources, data-ingest, vérification, guide"
+        result: "2 sources (transcript réunion markdown + export ChatGPT JSON). 5 pages wiki + 1 update. Article guide/03-data-ingest.md (158 lignes). Total vault : 35 pages."
+        children: []
+
+      # Clôture
+      - agent: "kiss-orchestrator"
+        claude_session: "aa8385af-9f2d-49aa-9646-3c7feed1ccce"
+        timestamp: "2026-04-15T00:05:00Z"
+        task: "Clôture session — mise à jour PLAN.md"
+        result: "Phases 0-3 cochées, path vault corrigé, grille d'évaluation remplie. Next : Phase 4."
+        children: []

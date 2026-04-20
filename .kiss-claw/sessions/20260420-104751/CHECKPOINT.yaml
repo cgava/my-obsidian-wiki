@@ -1,0 +1,666 @@
+session: 20260420-104751
+created: '2026-04-20T09:15:53'
+need: null
+why: |
+  Raison profonde : contrainte externe — pas de droits sur le repo amont obsidian-wiki + besoin de survivre aux git pull du vendor sans perdre les corrections locales. Secondairement, compliance dual-zone (s0 public / s2 privé) reste en arrière-plan comme justification du besoin initial, mais le moteur du besoin actuel est le verrou upstream.
+  Catégorie : contrainte_externe
+raw: |
+  Je ne peux pas fork le projet distant, donc il faut me faire un script de patch, qui va me permettre, pour chaque anomalie de :
+  - vérifier si l anomalie est encore présente (en totalité, ou en partie, quand cela s applique à plusieurs fichiers)
+  - de choisir si j applique ou pas le patch
+  Je veux une solution versatile : pour pouvoir ajouter des corrections d anomalies, ou en enlever facilement... avec des paramètres à l état de l art
+  il faut chercher l état de l art de ce genre de besoins, qui doit être récurrent chez des packagers de solutions (style distrib open source)
+  Le script de patch ou ses fichiers de configuration associés, doivent également contenir la description complète de l anomalie, afin de pouvoir comprendre de quoi il s agit
+elicited: |
+  Scope verrouillé : vendor-only (pas les anomalies locales knlg-repo, pas les phases 5-6 originales).
+  Système de patches inspiré distro packagers (quilt/DEP-3/etc.) — recherche état de l art incluse comme Phase 1 du plan.
+  Chaque patch : self-documenting, détection par état (clean/patched/partial/dirty), interactif, réversible, versatile.
+  Pilote choisi : anomalie B3 (vendor/.env) — simple, single file, haut impact.
+constraints: |
+  - Pas de fork upstream — corrections locales uniquement (knlg-repo/)
+  - Stack techno : bash + Python (stdlib + JSON) par défaut ; paquet pip/apt propre OK sans demander ; exotique = confirmation
+  - Self-documenting : description complète par patch
+  - Idempotent avec détection partielle multi-fichiers
+  - Interactif par défaut, batch via flag explicite
+  - Versatile : ajout/retrait patch = édition registre, pas du moteur
+  - Réversible : rollback par patch
+  - Survie aux git pull vendor : re-detect + re-apply
+  - Mono-vendor pour l instant (extensibilité = bonus)
+log:
+- agent: kiss-orchestrator
+  claude_session: e822b83d-46e9-4766-ab34-bfedd813f7b6
+  timestamp: '2026-04-20T09:16:04Z'
+  task: |-
+    Before creating a new session, I notice 3 in-progress sessions already exist. The most recent matches this project's current memory. Rather than auto-spawn a new session, let me surface them first.
+
+    ```
+    === IN-PROGRESS SESSIONS ===
+    ID                | Created              | Title
+    ------------------|----------------------|---------------------------------------------
+    20260419-081905   | 2026-04-19T08:19:05  | my-obsidian-wiki — Mise en production VPS
+    20260416-180815   | 2026-04-16T18:08:15  | Obsidian Link Fixer
+    20260415-075913   | 2026-04-15T07:59:13  | (no title)
+    ============================
+    ```
+
+    The memory (`Phase 1 / Préparation GitLab`) aligns with session `20260419-081905`.
+
+    **How do you want to proceed?**
+    - `resume 20260419-081905` — continue the VPS production session (most likely)
+    - `resume <other-id>` — resume one of the others
+    - `new` — start a fresh session (I'll run INIT with 3 questions)
+    - `list` — show full session table (includes closed ones)
+  result: 'Session 20260420-104751 créée. Plan 5 phases validé avec user : Phase 1
+    État de l art (quilt/DEP-3/etc-update/Nixpkgs/Ansible/etc), Phase 2 Design architecture,
+    Phase 3 Framework + pilote B3, Phase 4 Enregistrement anomalies vendor (B1/B2/B3/B4
+    + 12x Read .env + 5-6x _raw/), Phase 5 Validation + doc mainteneur. Scope : vendor-only
+    (hors knlg-repo local, hors phases 5-6 cross-linking/POC). Contrainte techno :
+    bash + Python stdlib + JSON ; pip/apt propre OK ; exotique confirmation préalable.
+    Contrainte : self-documenting, idempotent (clean/patched/partial/dirty), interactif,
+    réversible, versatile, survie git pull vendor. État initial : Phase 1 / step 1
+    = recherche quilt + DEP-3.'
+  children: []
+  artifacts: ''
+  decisions: |-
+    ## Analyse du fichier `docs/260418-dual-sensitivity-analysis.md`
+
+    ### Contexte
+    Document de synthèse Phase 4 terminée + audit exhaustif, daté 2026-04-18. Session kiss-claw d'origine : `20260417-223204` (déjà close).
+
+    ### État actuel
+    - **Mécanisme opérationnel** : wrapper `set-wiki-env.sh` + `.env.s0/.env.s2` → 3 fichiers livrés, isolation validée (8 runs, 0 fuite cross-zone).
+    - **Phases 1-4 done** : analyse, implémentation, ingest isolé, maintenance isolée.
+    - **Audit complet** : 25 fichiers scannés → **4 bloquants**, **22 trompeurs**, 7 OK.
+
+    ### Besoin implicite pour l'orchestrator
+    Le document identifie **travail restant explicite** en 2 axes :
+
+    **A. Corrections de l'audit** (backlog priorisé §6) :
+    | Prio | Items | Type |
+    |------|-------|------|
+    | **P0** | B3 (supprimer `vendor/.env`), B4 (subsumé), orphelins racine `knlg-repo/{.manifest.json, index.md, log.md}` | Hygiène bloquante |
+    | **P1** | B1+B2 (patch `wiki-ingest/SKILL.md` fallback + verif sécurité), créer `knlg-repo/CLAUDE.md`, créer `~/.obsidian-wiki/config` | Robustesse |
+    | **P2** | 12× "Read .env" (contourner via CLAUDE.md local), 6× "_raw/ in vault" (doc), `.omc/` orphelins | Cosmétique |
+
+    **B. Phases non livrées** (§7) :
+    - **Phase 5** — Cross-linking asymétrique (s2 → s0 autorisé, s0 → s2 bloqué)
+    - **Phase 6** — Validation POC des 2 chaînes LLM indépendantes
+
+    ### Décisions clés déjà arrêtées (à ne pas ré-débattre en INIT)
+    - Solution retenue : wrapper + multi-.env (score 31/35, §2.4) — acté, livré.
+    - Fork vendor accepté pour B1+B2 (recommandation explicite).
+    - CLAUDE.md local privilégié sur modif skills pour P2 "Read .env".
+
+    ### Contrainte transversale (§1)
+    - Mécanisme **déterministe** (pas de logique dans skills)
+    - **Isolation stricte** : index/log/manifest propres à chaque zone
+    - **Asymétrie cross-linking** s2 → s0 only
+
+    ---
+
+    ### Proposition pour orchestrator
+
+    Ce besoin est **distinct** de la session `20260419-081905` (Mise en production VPS). Je propose :
+
+    1. **Nouvelle session** dédiée "dual-sensitivity — hardening + phases 5-6"
+    2. INIT avec 3 questions déjà largement pré-répondues par le doc — je te les reformulerais pour **confirmer** plutôt que qu'élicite :
+       - Q1 : Objectif = corrections audit P0/P1 + livraison phases 5-6 (cross-linking + validation POC) ?
+       - Q2 : Phases proposées = (1) P0 hygiène, (2) P1 robustesse, (3) Phase 5 cross-linking, (4) Phase 6 validation POC, (5) P2 cosmétique en option ?
+       - Q3 : Non-goals = pas de refonte du mécanisme retenu, pas de modif skills hors B1/B2, P2 repoussé si presse ?
+
+    Tu veux :
+    - **`new`** → je lance INIT avec ces questions de confirmation
+    - **`resume 20260419-081905`** → mais ça ne colle pas, sujet différent
+    - **Autre scope** (ex : ne traiter que P0+P1, ou que Phases 5-6) → dis-moi
+
+    Session `20260420-104751` créée et enregistrée. Je lance maintenant le protocole INIT (obligatoire même si le doc pré-remplit les réponses — les 3 questions servent d'alignement explicite).
+
+    ---
+
+    ## INIT — Question 1/3
+
+    > **What are you building? (1 sentence)**
+
+    Ma compréhension tirée du doc d'analyse :
+
+    > *« Finir le durcissement du mécanisme dual-sensitivity d'obsidian-wiki en traitant les anomalies d'audit P0+P1, puis livrer les phases 5 (cross-linking asymétrique s2→s0) et 6 (validation POC des 2 chaînes LLM indépendantes). »*
+
+    **Confirmes-tu cette formulation, ou veux-tu l'ajuster ?** (ex : élargir/restreindre le périmètre, changer l'ordre, exclure une des 2 branches audit vs phases restantes).
+
+    ### Élicitation du "pourquoi"
+
+    Le doc donne un **pourquoi explicite** en §1 : *« compliance et séparation public/privé. À terme, deux chaînes LLM distinctes traiteront les données selon leur sensibilité. »*
+
+    Je considère le pourquoi profond comme **clair** (catégorie : *contrainte_externe — compliance/souveraineté LLM*). Dis-moi si tu veux le nuancer (ex : pourquoi *maintenant* plutôt que plus tard, ou déclencheur spécifique).
+
+    ## INIT — Question 3/3 — Contraintes & non-goals
+
+    Ma proposition basée sur ce qu'on a acté :
+
+    ### Contraintes
+    - **Pas de fork** `obsidian-wiki` — toutes les corrections vivent dans `knlg-repo/` (ou équivalent local)
+    - **Survie aux `git pull` vendor** — après update vendor, le système doit re-détecter l'état et proposer de ré-appliquer
+    - **Self-documenting** — chaque anomalie porte sa description complète (contexte, impact, référence §§ audit) dans le registre
+    - **Idempotent** — détection avant apply : `clean | patched | partial | dirty`
+    - **Interactif par défaut** — user choisit patch par patch ; mode `--all --yes` pour batch (avec flag explicite)
+    - **Versatile** — ajout/retrait d'une anomalie = éditer un fichier de registre, pas toucher au moteur
+    - **Réversible** — chaque patch a un rollback
+
+    ### Non-goals
+    - ❌ Corriger les anomalies locales (orphelins `knlg-repo/`, `~/.obsidian-wiki/config`, `knlg-repo/CLAUDE.md`) — scope distinct, session future
+    - ❌ Livrer phases 5 (cross-linking asymétrique) et 6 (POC validation) — session future
+    - ❌ Envoyer des PR upstream — scope uniquement local. Placeholder DEP-3 `Applied-Upstream` prévu mais pas de workflow automatisé
+    - ❌ Tester / modifier le mécanisme dual-zone lui-même (wrapper `set-wiki-env.sh`, `.env.s0/.env.s2`) — déjà validé Phase 4
+    - ❌ Support multi-vendor (si demain on vendorise un autre projet) — outil mono-vendor pour l'instant, extensibilité = bonus seulement
+
+    ---
+
+    **Ajouts / retraits / nuances ?** (ex : veux-tu borner Phase 1 à un nombre max de références ? Veux-tu imposer bash plutôt que Python ? Un "time budget" par phase ?)
+
+    Une fois Q3 validée, je génère plan + state + CHECKPOINT init, puis je te donne le session brief pour démarrer la Phase 1.
+  issues: ''
+  rationale: |-
+    ## Analyse du fichier `docs/260418-dual-sensitivity-analysis.md`
+
+    ### Contexte
+    Document de synthèse Phase 4 terminée + audit exhaustif, daté 2026-04-18. Session kiss-claw d'origine : `20260417-223204` (déjà close).
+
+    ### État actuel
+    - **Mécanisme opérationnel** : wrapper `set-wiki-env.sh` + `.env.s0/.env.s2` → 3 fichiers livrés, isolation validée (8 runs, 0 fuite cross-zone).
+    - **Phases 1-4 done** : analyse, implémentation, ingest isolé, maintenance isolée.
+    - **Audit complet** : 25 fichiers scannés → **4 bloquants**, **22 trompeurs**, 7 OK.
+
+    ### Besoin implicite pour l'orchestrator
+    Le document identifie **travail restant explicite** en 2 axes :
+
+    **A. Corrections de l'audit** (backlog priorisé §6) :
+    | Prio | Items | Type |
+    |------|-------|------|
+    | **P0** | B3 (supprimer `vendor/.env`), B4 (subsumé), orphelins racine `knlg-repo/{.manifest.json, index.md, log.md}` | Hygiène bloquante |
+    | **P1** | B1+B2 (patch `wiki-ingest/SKILL.md` fallback + verif sécurité), créer `knlg-repo/CLAUDE.md`, créer `~/.obsidian-wiki/config` | Robustesse |
+    | **P2** | 12× "Read .env" (contourner via CLAUDE.md local), 6× "_raw/ in vault" (doc), `.omc/` orphelins | Cosmétique |
+
+    **B. Phases non livrées** (§7) :
+    - **Phase 5** — Cross-linking asymétrique (s2 → s0 autorisé, s0 → s2 bloqué)
+    - **Phase 6** — Validation POC des 2 chaînes LLM indépendantes
+
+    ### Décisions clés déjà arrêtées (à ne pas ré-débattre en INIT)
+    - Solution retenue : wrapper + multi-.env (score 31/35, §2.4) — acté, livré.
+    - Fork vendor accepté pour B1+B2 (recommandation explicite).
+    - CLAUDE.md local privilégié sur modif skills pour P2 "Read .env".
+
+    ### Contrainte transversale (§1)
+    - Mécanisme **déterministe** (pas de logique dans skills)
+    - **Isolation stricte** : index/log/manifest propres à chaque zone
+    - **Asymétrie cross-linking** s2 → s0 only
+
+    ---
+
+    ### Proposition pour orchestrator
+
+    Ce besoin est **distinct** de la session `20260419-081905` (Mise en production VPS). Je propose :
+
+    1. **Nouvelle session** dédiée "dual-sensitivity — hardening + phases 5-6"
+    2. INIT avec 3 questions déjà largement pré-répondues par le doc — je te les reformulerais pour **confirmer** plutôt que qu'élicite :
+       - Q1 : Objectif = corrections audit P0/P1 + livraison phases 5-6 (cross-linking + validation POC) ?
+       - Q2 : Phases proposées = (1) P0 hygiène, (2) P1 robustesse, (3) Phase 5 cross-linking, (4) Phase 6 validation POC, (5) P2 cosmétique en option ?
+       - Q3 : Non-goals = pas de refonte du mécanisme retenu, pas de modif skills hors B1/B2, P2 repoussé si presse ?
+
+    Tu veux :
+    - **`new`** → je lance INIT avec ces questions de confirmation
+    - **`resume 20260419-081905`** → mais ça ne colle pas, sujet différent
+    - **Autre scope** (ex : ne traiter que P0+P1, ou que Phases 5-6) → dis-moi
+
+    Session `20260420-104751` créée et enregistrée. Je lance maintenant le protocole INIT (obligatoire même si le doc pré-remplit les réponses — les 3 questions servent d'alignement explicite).
+
+    ---
+
+    ## INIT — Question 1/3
+
+    > **What are you building? (1 sentence)**
+
+    Ma compréhension tirée du doc d'analyse :
+
+    > *« Finir le durcissement du mécanisme dual-sensitivity d'obsidian-wiki en traitant les anomalies d'audit P0+P1, puis livrer les phases 5 (cross-linking asymétrique s2→s0) et 6 (validation POC des 2 chaînes LLM indépendantes). »*
+
+    **Confirmes-tu cette formulation, ou veux-tu l'ajuster ?** (ex : élargir/restreindre le périmètre, changer l'ordre, exclure une des 2 branches audit vs phases restantes).
+
+    ### Élicitation du "pourquoi"
+
+    Le doc donne un **pourquoi explicite** en §1 : *« compliance et séparation public/privé. À terme, deux chaînes LLM distinctes traiteront les données selon leur sensibilité. »*
+
+    Je considère le pourquoi profond comme **clair** (catégorie : *contrainte_externe — compliance/souveraineté LLM*). Dis-moi si tu veux le nuancer (ex : pourquoi *maintenant* plutôt que plus tard, ou déclencheur spécifique).
+
+    ## INIT — Question 3/3 — Contraintes & non-goals
+
+    Ma proposition basée sur ce qu'on a acté :
+
+    ### Contraintes
+    - **Pas de fork** `obsidian-wiki` — toutes les corrections vivent dans `knlg-repo/` (ou équivalent local)
+    - **Survie aux `git pull` vendor** — après update vendor, le système doit re-détecter l'état et proposer de ré-appliquer
+    - **Self-documenting** — chaque anomalie porte sa description complète (contexte, impact, référence §§ audit) dans le registre
+    - **Idempotent** — détection avant apply : `clean | patched | partial | dirty`
+    - **Interactif par défaut** — user choisit patch par patch ; mode `--all --yes` pour batch (avec flag explicite)
+    - **Versatile** — ajout/retrait d'une anomalie = éditer un fichier de registre, pas toucher au moteur
+    - **Réversible** — chaque patch a un rollback
+
+    ### Non-goals
+    - ❌ Corriger les anomalies locales (orphelins `knlg-repo/`, `~/.obsidian-wiki/config`, `knlg-repo/CLAUDE.md`) — scope distinct, session future
+    - ❌ Livrer phases 5 (cross-linking asymétrique) et 6 (POC validation) — session future
+    - ❌ Envoyer des PR upstream — scope uniquement local. Placeholder DEP-3 `Applied-Upstream` prévu mais pas de workflow automatisé
+    - ❌ Tester / modifier le mécanisme dual-zone lui-même (wrapper `set-wiki-env.sh`, `.env.s0/.env.s2`) — déjà validé Phase 4
+    - ❌ Support multi-vendor (si demain on vendorise un autre projet) — outil mono-vendor pour l'instant, extensibilité = bonus seulement
+
+    ---
+
+    **Ajouts / retraits / nuances ?** (ex : veux-tu borner Phase 1 à un nombre max de références ? Veux-tu imposer bash plutôt que Python ? Un "time budget" par phase ?)
+
+    Une fois Q3 validée, je génère plan + state + CHECKPOINT init, puis je te donne le session brief pour démarrer la Phase 1.
+- agent: kiss-orchestrator
+  claude_session: e822b83d-46e9-4766-ab34-bfedd813f7b6
+  timestamp: '2026-04-20T10:41:12Z'
+  task: Délégation kiss-verificator — Revue du commit f2801c9 (fixes INS-0022 + INS-0023
+    dans repo kiss-claw)
+  result: En cours — délégué à kiss-verificator. Test in-vivo de INS-0023 puisque
+    verificator dispose maintenant de Bash + WebFetch.
+  children:
+  - agent: kiss-executor
+    claude_session: agent-ae2bbb4cbbf47c9de
+    timestamp: '2026-04-20T09:24:48Z'
+    task: Phase 1 — Recherche SOA patch systems (quilt/DEP-3/Debian/Gentoo/Nixpkgs/Arch/RPM/git/Ansible/Python
+      tooling)
+    result: 'Livre docs/260420-patch-system-soa.md (605 lignes) couvrant 9 familles
+      : Quilt+DEP-3, Debian source format 3.0, etc-update/dispatch-conf, Nixpkgs/Arch/RPM,
+      git workflows (format-patch/am/apply/stgit/subtree), Ansible check_mode + Puppet,
+      detection d etat (checksum/content-match/patch --dry-run/git apply --check),
+      outils Python (unidiff/whatthepatch/patch-ng/difflib), et peripheriques (etckeeper,
+      needrestart, vendir, copybara). Tableau comparatif 10 approches x 9 criteres.
+      Recommandation architecture : (1) layout quilt-like file-per-patch + series.json
+      (stdlib JSON, pas YAML) ; (2) stack bash entry + Python stdlib + unidiff optionnel,
+      ZERO binaire quilt requis ; (3) detection composite sha256 + git apply --check
+      + reverse ; (4) UX etc-update-like avec modes 1-6 par conflit ; (5) anomaly
+      record structure complete (id, title, audit_ref, severity, targets, detection,
+      apply, rollback, history) ; (6) 6 etats target : clean/patched/partial/dirty/absent/unknown.
+      7 questions ouvertes listees pour Phase 2 Design (granularite multi-cibles,
+      integration git/submodule vs subtree vs regeneration, format DEP-3 enrichi,
+      upstream drift auto vs interactif, tests pytest, lock concurrence).'
+    children: []
+  - agent: kiss-verificator
+    claude_session: agent-ac7f9dc39a912d587
+    parent_claude_session: e822b83d-46e9-4766-ab34-bfedd813f7b6
+    timestamp: '2026-04-20T10:41:12Z'
+    task: Délégation kiss-verificator — Revue du commit f2801c9 (fixes INS-0022 +
+      INS-0023 dans repo kiss-claw)
+    result: En cours — délégué à kiss-verificator. Test in-vivo de INS-0023 puisque
+      verificator dispose maintenant de Bash + WebFetch.
+    children: []
+  - agent: kiss-improver
+    claude_session: agent-a39d1694c67c910db
+    timestamp: '2026-04-20T10:33:53Z'
+    task: Inter-phase analysis Phase 1 → Phase 2 + extraction insights
+    result: '3 INS proposed: INS-0022 (P1) store.sh checkpoint upsert indentation
+      bug reproduced and fix proposed; INS-0023 (P1) verificator agent.md declares
+      no Bash but prescribes bash-based CHECKPOINT protocol — grant Bash+WebFetch
+      or remove the protocol; INS-0024 (P2) codify observed clean boundary: verificator
+      defers tooling bugs to improver. Recommendation: fix INS-0022 and INS-0023 before
+      Phase 2 (both touch every subagent at end-of-task). INS-0024 can wait.'
+    children: []
+  - agent: kiss-executor
+    claude_session: agent-a545711738e8e1cad
+    timestamp: '2026-04-20T10:40:35Z'
+    task: 'Side-quest infra kiss-claw : fix INS-0022 (store.sh YAML indent) + INS-0023
+      (verificator tools)'
+    result: 'Commit f2801c9 (master local, non pushé). INS-0022 avant fix : test FAIL
+      (yaml parse error + indent_len=2). Après fix : test PASS (YAML parse OK + indent_len=0).
+      INS-0023 : agent.md frontmatter tools étendu à Read/Write/Glob/Grep/Bash/WebFetch
+      + 2 bullets garde-fou ajoutés dans Constraints. WIP repo kiss-claw (.kiss-claw/agents/INSIGHTS.md,
+      vendor/my-claude-minion submodule, tmp.txt) non embarqués — vérifié via git
+      status post-commit.'
+    children: []
+- agent: kiss-orchestrator
+  claude_session: 50f00678-26cb-4353-b767-bcacdcedd699
+  timestamp: '2026-04-20T13:59:17Z'
+  task: |-
+    ```
+    === SESSION RESUME ===
+    Agent    : kiss-orchestrator
+    Session  : 20260420-104751
+    Phase    : Phase 2 — Design architecture
+    Last done: Side-quest INS-0022/INS-0023 applied (kiss-claw commit f2801c9, REV-0002 approved-with-notes)
+    Blocked  : none
+    Next     : Déléguer à kiss-executor → `docs/260420-patch-system-design.md` + 1-2 ADRs
+               Livrables : arbitrage 8 points (multi-cibles, auto-commit, stratégie vendor CRITIQUE,
+               DEP-3 strict/enrichi, drift --3way, unittest/pytest, flock, registre/runtime) +
+               traitement notes verificator mineures (whatthepatch, §5 URLs, Python 3.10+/3.11+)
+    Insights : 14 proposed (toutes sessions confondues — pas toutes relatives à cette session)
+    Status   : ready
+    Mode     : live
+    =====================
+    ```
+
+    **Projet** : obsidian-wiki Vendor Patch System — Phase 1 (état de l'art) complétée et commitée (34c482b). Side-quest kiss-claw (INS-0022 + INS-0023) complétée aussi.
+
+    **Prochaine action recommandée** : déléguer à kiss-executor la rédaction du design doc Phase 2 (`docs/260420-patch-system-design.md`) avec arbitrage explicite des 8 points ouverts + 1-2 ADRs pour les décisions structurantes (notamment point 3 : stratégie vendor, marqué CRITIQUE).
+
+    Proceed, or override?
+  result: 'PLAN actualisé : Phase 1 DONE (34c482b), Phase 2 DONE (c164ad4 + 52bc7f8,
+    8/8 items + 2 ADRs), Phase 3 IN PROGRESS (8/16 jalons livrés, 2 commits a3bf296
+    + a804caf, 67 tests). Jalons 1-8 déroulés avec 2 reworks pre-commit (schema alignment
+    J1-4, semantic fix forward/reverse J5). 5 revues verificator consécutives approved-with-notes,
+    0 needs-rework. Backlog : J9-11 verify + refresh + pilote B3 ; J12-16 interactif
+    + all + fallback + intégration CI. Reste notes mineures REV-0004/0005 majoritairement
+    déférées aux jalons futurs. Mode live. Session non-closable car phase 3 non-terminée.'
+  children:
+  - agent: kiss-executor
+    claude_session: agent-aa87dc2abe1882579
+    timestamp: '2026-04-20T11:29:44Z'
+    task: 'Phase 2 Design — produire docs/260420-patch-system-design.md (FR, design
+      archi patch-system vendor/obsidian-wiki avec contexte, archi logique 6 composants,
+      schema storage series.json + runtime.json, UX CLI detaillee + mode interactif
+      etc-update-like, arbitrage des 8 points ouverts SOA §4.6, traitement des 3 notes
+      REV-0001, plan Phase 3) + ADR-0001 sur la strategie vendor (decision structurante
+      : submodule pristine + regeneration deterministe)'
+    result: '2 fichiers crees : docs/260420-patch-system-design.md (778 lignes, FR,
+      8 sections, depth <=3) + docs/adr/ADR-0001-vendor-submodule-pristine.md (236
+      lignes). Decisions majeures prises : (1) granularite = 1 patch par theme multi-cibles
+      ; (2) pas auto-commit ; (3) vendor strategy = submodule pristine + regeneration
+      deterministe (option a, ADR-0001) ; (4) DEP-3 enrichi avec prefixe X-* ; (5)
+      drift = escalade par defaut, dial --auto-3way opt-in ; (6) tests = unittest
+      stdlib ; (7) flock obligatoire sur ops mutantes ; (8) separation series.json
+      (registre logique) + runtime.json (config execution). Notes REV-0001 traitees
+      : erratum whatthepatch note (pas de rework SOA), Python 3.10+ retenu (pas besoin
+      tomllib), caveat URLs documente en §6.3. Caveats : design-only, aucun code fonctionnel
+      ; 778 lignes (~11% au-dessus de la cible 400-700 mais contenu substantiel justifie
+      ; reduction possible si besoin). Une seule ADR produite (justifie en §8 du design
+      : §5.3 vendor est la seule decision transverse a tout le reste).'
+    children: []
+  - agent: kiss-verificator
+    claude_session: agent-a6ebd7304fcedbec1
+    timestamp: '2026-04-20T11:33:17Z'
+    task: 'Review Phase 2 Design livrables kiss-executor (docs/260420-patch-system-design.md
+      778l + docs/adr/ADR-0001-vendor-submodule-pristine.md 236l) : architecture,
+      storage, UX CLI, arbitrage 8 points ouverts, ADR format Nygard'
+    result: 'Verdict: approved-with-notes. 7 notes mineures (cohérence baseline_sha,
+      optionnel vs obligatoire patched_sha256, nuance RFC 6648 sur X-*, trade-off
+      JSONL, suggestion ADR §5.8 posterieur, cosmetique flock, verbosite 778 lignes).
+      Aucun blocker. Proceed to Phase 3.'
+    children: []
+  - agent: kiss-executor
+    claude_session: agent-a803c86ee002c2b05
+    timestamp: '2026-04-20T11:46:21Z'
+    task: 'Rework Phase 2 design sur 2 notes REV-0003 : (1) ajout note factuelle RFC
+      6648 en §5.4 du design doc, (2) création ADR-0002 formalisant la séparation
+      series.json (registre logique) vs runtime.json (config exécution) décidée §5.8.'
+    result: 'Design doc docs/260420-patch-system-design.md : +5 lignes (778→783),
+      bloc Note factuelle inséré dans §5.4 entre Alternative rejetee et Verification
+      de coherence. Création docs/adr/ADR-0002-registre-runtime-separation.md (253
+      l, format Nygard FR, cohérent ADR-0001) avec 7 positives / 3 négatives / 3 neutres
+      et 3 alternatives rejetées (fichier unique, inlining DEP-3, YAML). Aucun autre
+      fichier touché, aucun commit. Caveat: ADR légèrement au-dessus cible 250 l.'
+    children: []
+  - agent: kiss-executor
+    claude_session: agent-a4377e66c26f3dbfd
+    timestamp: '2026-04-20T12:53:23Z'
+    task: Phase 3 Framework jalons 1-4 (squelette package, registre+schema, fixtures,
+      moteur detection sha256)
+    result: 'Livres: scripts/patch-system (bash dispatcher), patch_system/{__init__,__main__,cli,registry,detect}.py,
+      tests/{test_registry,test_detect}.py + tests/fixtures/{vendor-mini,vendor-mini-patched,patches,series.json,README,_compute_sha.sh}.
+      21/21 tests unittest OK. CLI validee: list/status empty => (empty) exit 0; apply
+      X => exit 2. Caveat principal: divergence schema design doc (records/last_result/BLOCKING...)
+      vs brief jalon 2 (patches/status_derived/P0..P2) -- suivi du brief verbatim,
+      a arbitrer plus tard.'
+    children: []
+  - agent: kiss-verificator
+    claude_session: agent-af3d8bc797da4724d
+    timestamp: '2026-04-20T13:04:34Z'
+    task: 'Review kiss-executor livrables Phase 3 jalons 1-4 post-rework : squelette
+      scripts/patch-system + package patch_system, registry.py (schema v1 design-aligned),
+      detect.py (sha256 multi-target), cli.py, fixtures vendor-mini + patches DEP-3
+      + series.json, 31 tests unittest.'
+    result: 'Verdict: approved-with-notes. 31/31 tests pass en 7ms, sha256 fixtures
+      matchent series.json byte-pour-byte, validate() renvoie [] sur fixtures, CLI
+      list/status exit 0 avec sorties attendues clean/patched/dirty, aucun git apply
+      hors docstring TODO, schema strictement aligne design §3.2. 5 notes mineures
+      : ordre flags argparse (global avant subcommand), _IMPLEMENTED dead code, vendor_baseline_sha
+      non valide, fixture drift placeholder, exit 0 sur registre vide. Aucun blocker
+      — proceed to jalons 5-8.'
+    children: []
+  - agent: kiss-executor
+    claude_session: agent-a101c4edb7154d5ad
+    timestamp: '2026-04-20T13:29:45Z'
+    task: 'Phase 3 jalons 5-8 — détection composite (git apply --check), moteur apply
+      v1 (git apply --index + idempotence + flock dispatcher), moteur rollback (git
+      apply --reverse + garde-fou last_result=patched), polish CLI (describe + diff
+      + status §4.4 + --json) + cleanup REV-0004 notes #1/#2/#5 + enrichissement fixtures
+      (0003 cosmetic drift + 0004 semantic drift).'
+    result: 'Fichiers : scripts/patch_system/detect.py (434 l — evaluate composite),
+      scripts/patch_system/apply.py (261 l, nouveau), scripts/patch_system/rollback.py
+      (168 l, nouveau), scripts/patch_system/cli.py (589 l — refactor + nouvelles
+      cmds), scripts/patch-system (bash — flock sur mutating cmds). Tests : test_detect.py
+      (7 nouveaux tests evaluate), test_apply.py (9 tests, nouveau), test_rollback.py
+      (5 tests, nouveau), test_cli.py (15 tests, nouveau). Fixtures : 0003 cosmetic
+      drift réel (blank-line offset), 0004 semantic drift (2 hunks dont 1 rejeté),
+      series.json + README.md mis à jour. Total 67/67 tests passent (baseline 31 +
+      36 nouveaux). REV-0004 notes #1 (--series top-level), #2 (_IMPLEMENTED supprimé),
+      #5 (verify stub nouvelle sémantique) adressées. Caveat : ambiguïté brief Jalon
+      5 vs sémantique git apply — j avais suivi littéralement le brief (--check succeeds
+      → patched+cosmetic, identique brief ligne 2). Flag pour verificator.'
+    children: []
+  - agent: kiss-executor
+    claude_session: agent-a0b208287e379dddc
+    timestamp: '2026-04-20T13:35:58Z'
+    task: Correction semantique jalon 5 — forward git apply --check succeeds → state=clean+cosmetic
+      (pas patched). reverse --check succeeds → state=patched+cosmetic. Adapter detect.py,
+      test_detect.py, fixtures/README.md.
+    result: 'Modifies: scripts/patch_system/detect.py (_composite_probe branche forward
+      renvoie clean au lieu de patched + propagation per_target + docstrings), tests/test_detect.py
+      (2 tests renommes: test_evaluate_forward_cosmetic_drift_is_clean + test_evaluate_reverse_cosmetic_drift_is_patched),
+      tests/fixtures/README.md (matrice evaluate mise a jour). 67 tests passent toujours
+      (pas de split — noms modifies, assertions inversees cote forward). Aucun changement
+      fixtures vendor-mini (deja compatibles: pre-patch=original output+blank line
+      => forward applies; post-patch=patched output+blank line => reverse applies).'
+    children: []
+  - agent: kiss-verificator
+    claude_session: agent-a6ae507b3b2bb4584
+    timestamp: '2026-04-20T13:42:13Z'
+    task: Review kiss-executor Phase 3 jalons 5-8 + fix sémantique detect.evaluate
+      forward-cosmetic
+    result: 'Verdict: approved-with-notes. 67 tests passent en 3.4s, scope respecté,
+      fix sémantique propre. 5 notes mineures : path resolution smoke-test, per_target
+      propagation multi-target non testé, flock scope PATCH_SYSTEM_ROOT, et caveats
+      executor #3/4/5/6 acceptés.'
+    children: []
+  artifacts: |-
+    ```
+    === SESSION RESUME ===
+    Agent    : kiss-orchestrator
+    Session  : 20260420-104751
+    Phase    : Phase 2 — Design architecture
+    Last done: Side-quest INS-0022/INS-0023 applied (kiss-claw commit f2801c9, REV-0002 approved-with-notes)
+    Blocked  : none
+    Next     : Déléguer à kiss-executor → `docs/260420-patch-system-design.md` + 1-2 ADRs
+               Livrables : arbitrage 8 points (multi-cibles, auto-commit, stratégie vendor CRITIQUE,
+               DEP-3 strict/enrichi, drift --3way, unittest/pytest, flock, registre/runtime) +
+               traitement notes verificator mineures (whatthepatch, §5 URLs, Python 3.10+/3.11+)
+    Insights : 14 proposed (toutes sessions confondues — pas toutes relatives à cette session)
+    Status   : ready
+    Mode     : live
+    =====================
+    ```
+
+    **Projet** : obsidian-wiki Vendor Patch System — Phase 1 (état de l'art) complétée et commitée (34c482b). Side-quest kiss-claw (INS-0022 + INS-0023) complétée aussi.
+
+    **Prochaine action recommandée** : déléguer à kiss-executor la rédaction du design doc Phase 2 (`docs/260420-patch-system-design.md`) avec arbitrage explicite des 8 points ouverts + 1-2 ADRs pour les décisions structurantes (notamment point 3 : stratégie vendor, marqué CRITIQUE).
+
+    Proceed, or override?
+
+    ## REV-0003 → `approved-with-notes`, aucun blocker
+
+    **Livrables Phase 2** :
+    - `docs/260420-patch-system-design.md` (778 l) — 8 arbitrages tranchés + traitement 3 notes REV-0001 + plan P3 (16 jalons)
+    - `docs/adr/ADR-0001-vendor-submodule-pristine.md` (236 l) — vendor strategy (CRITIQUE)
+
+    **7 notes mineures REV-0003** :
+    | # | Type | Sujet | Action proposée |
+    |---|------|-------|------------------|
+    | 1 | cohérence | `vendor_baseline_sha` global vs par record | Déféré P3 jalon 2 (verif dit ok) |
+    | 2 | schéma | `patched_sha256` inconnu au `record --from` | Déféré P3 jalon 11 (verif dit ok) |
+    | 3 | factuel | Préfixe `X-*` → RFC 6648 (2012) déprécie | Rework mineur : ajouter nuance en §5.4 |
+    | 4 | méthodo | JSONL history — trade-off valable | Accepted, pas d'action |
+    | 5 | méthodo | §5.8 (séparer registre/runtime) mériterait ADR-0002 | Rework optionnel : ADR-0002 |
+    | 6 | factuel | `flock -n` exit 1 confirmé | Rien à faire |
+    | 7 | verbosité | 778 l, ~11% au-dessus cible | Optionnel, non bloquant |
+
+    ## Options
+
+    **Option A — Commit direct puis Phase 3** (pattern Phase 1) : 1 commit Phase 2 avec design+ADR-0001 as-is, notes mineures déférées ou ignorées, on enchaîne sur Phase 3 Framework.
+
+    **Option B — Rework léger puis 2 commits** (pattern workflow) :
+    1. Commit WIP as-is (Phase 2 initial).
+    2. Rework notes #3 (RFC 6648 nuance) + #5 (ADR-0002 séparation registre/runtime).
+    3. Commit 2 (Phase 2 rework REV-0003).
+
+    **Option C — Option B sans ADR-0002** : rework juste #3 (RFC 6648 nuance), skip #5.
+
+    Quelle option ? (A / B / C)
+
+    ## Phase 2 complète — deux commits clean
+
+    ```
+    c164ad4  docs(patch-system): Phase 2 - design architecture + ADR-0001 vendor strategy
+    52bc7f8  docs(patch-system): Phase 2 - rework from REV-0003 (RFC 6648 + ADR-0002)
+    ```
+
+    **Livrables** :
+    - `docs/260420-patch-system-design.md` (783 l) — 8 arbitrages + notes REV-0001 + plan P3 + nuance RFC 6648 §5.4
+    - `docs/adr/ADR-0001-vendor-submodule-pristine.md` (236 l) — stratégie vendor CRITIQUE
+    - `docs/adr/ADR-0002-registre-runtime-separation.md` (253 l) — séparation series.json/runtime.json
+
+    **Notes REV-0003 résiduelles** : #1 et #2 déférées en Phase 3 jalons 2 et 11 (verificator explicitement ok pour différé) ; #4/#6/#7 accepted ou non-actionnables.
+
+    ## Next
+
+    Phase 3 — **Framework (moteur + pilote B3)**. 16 jalons planifiés dans le design §7 (squelette CLI → parser registre → moteur détection → apply → interactif → dry-run → rollback → pilote B3 `vendor/.env` → tests).
+
+    **Suggestion kiss-improver** : avant Phase 3, inter-phase kiss-improver (pattern Phase 1 → inter-phase). Utile pour extraire insights de l'exécution Phase 2 pendant que c'est frais.
+
+    Options :
+    - **A** — Lancer `/kiss-improver` maintenant (inter-phase, extraire insights Phase 2)
+    - **B** — Enchaîner directement Phase 3 Framework (déléguer jalons 1-4 à kiss-executor)
+    - **C** — Stop session ici (closer ou laisser `in_progress`)
+
+    Quelle option ?
+
+    ## REV-0004 → `approved-with-notes`, proceed recommandé
+
+    **31 tests passent** (spot-check sha256 OK, CLI manuel OK, scope respecté).
+
+    **5 notes mineures** toutes non-bloquantes, déférables aux jalons 5-8 :
+    1. Ordre flags argparse (`--series` avant sous-cmd)
+    2. `_IMPLEMENTED` déclaré inutilisé dans cli.py
+    3. `vendor_baseline_sha` top-level non validé strictement
+    4. Fixture drift 0003 sha placeholder → enrichir jalon 5
+    5. Exit 0 sur registre vide → couvrir dans `verify` jalon 8
+
+    ## Commit Phase 3 jalons 1-4
+
+    Contrairement à Phase 2, ici le rework est intervenu **avant** tout commit (correction du brief erroné sur le schema). Le résultat revu correspond à l'état final — 1 commit propre suffit, pas besoin du pattern 2 commits.
+
+    **Proposition** :
+    - 1 commit : `feat(patch-system): Phase 3 - jalons 1-4 squelette + registre + fixtures + detect sha256`
+    - `.gitignore` + `patches/.gitkeep` + `scripts/patch_system/` + `tests/` inclus
+    - Notes REV-0004 → déférées aux jalons 5-8
+
+    OK pour commit ? (yes / autre)
+
+    ## Phase 3 jalons 1-4 committée (`a3bf296`)
+
+    ```
+    a3bf296 feat(patch-system): Phase 3 - jalons 1-4 squelette + registre + fixtures + detect sha256
+    52bc7f8 docs(patch-system): Phase 2 - rework from REV-0003 (RFC 6648 + ADR-0002)
+    c164ad4 docs(patch-system): Phase 2 - design architecture + ADR-0001 vendor strategy
+    ```
+
+    **Mémoire mise à jour** : 2 leçons orchestrator ajoutées — briefs d'implémentation doivent citer le design verbatim ou imposer lecture préalable ; délégations doivent fournir les paths absolus kiss-claw scripts.
+
+    ## Prochaines options
+
+    **A** — Enchaîner jalons 5-8 (detect composite `git apply --check` / moteur apply v1 / rollback / commandes `status`/`list`/`describe`/`diff` finalisées).
+
+    **B** — Stop session ici et reprendre plus tard (session reste `in_progress`).
+
+    **C** — `close session` maintenant si tu considères Phase 3 suffisamment avancée pour l'instant.
+
+    **D** — Autre.
+
+    Quelle option ?
+
+    ## REV-0005 → `approved-with-notes`, proceed recommandé
+
+    **67 tests passent** en 3.4s. Sémantique forward=clean/reverse=patched correcte. REV-0004 #1/#2/#5 absorbés. Scope jalons 9-14 respecté.
+
+    **5 notes mineures** :
+    1. Smoke test `--series tests/fixtures/series.json` échoue sur apply/diff (patches_dir = series_dir, mais fixtures ont `patches/*.patch` en sous-dossier). Convention prod (co-located) fonctionne.
+    2. Multi-target asymétrie `evaluate()` propagation — acceptable mono-target.
+    3. `.lock` partagé entre series distinctes — conforme mono-repo Phase 3.
+    4. Caveats executor #3/#4 (cross-module underscored, flock heuristique bash) acceptés.
+    5. Verify stub + codes retour à affiner jalons 9+.
+
+    **Backlog noté** par verificator : documenter convention `patches/series.json + patches/*.patch` dans README utilisateur (jalon 11+).
+
+    ## Commit Phase 3 jalons 5-8
+
+    Comme pour jalons 1-4, le fix sémantique est survenu **avant tout commit**. 1 seul commit propre (règle "exception pre-commit" que j'ai ajoutée à memory:kiss-orchestrator).
+
+    **Proposition** : `feat(patch-system): Phase 3 - jalons 5-8 detect composite + apply + rollback + CLI polish`
+
+    OK pour commit ? (yes / autre)
+
+    ## Phase 3 jalons 5-8 committée (`a804caf`)
+
+    ```
+    a804caf feat(patch-system): Phase 3 - jalons 5-8 detect composite + apply + rollback + CLI polish
+    a3bf296 feat(patch-system): Phase 3 - jalons 1-4 squelette + registre + fixtures + detect sha256
+    52bc7f8 docs(patch-system): Phase 2 - rework from REV-0003 (RFC 6648 + ADR-0002)
+    c164ad4 docs(patch-system): Phase 2 - design architecture + ADR-0001 vendor strategy
+    34c482b docs(patch-system): Phase 1 - etat de l art patch systems pour vendoring non-forkable
+    ```
+
+    **67 tests pass**. 8/16 jalons livrés. `patches/.lock` ajouté au `.gitignore`.
+
+    ## Suite possible
+
+    Prochains jalons (du design §7) :
+    - **9** — commande `verify` (recalcul patch_sha256, drift vendor, cohérence targets)
+    - **10** — commande `refresh` (recalcul baseline/patched sha depuis état courant)
+    - **11** — **premier patch réel B3** `0003-vendor-env-remove.patch` + entrée series.json (+ README user doc suggéré par verificator)
+
+    Options :
+    - **A** — Enchaîner jalons 9-11 (verify + refresh + pilote B3 réel)
+    - **B** — Stop session ici
+    - **C** — `close session`
+
+    Quelle option ?
+  decisions: ''
+  issues: |-
+    ## REV-0005 → `approved-with-notes`, proceed recommandé
+
+    **67 tests passent** en 3.4s. Sémantique forward=clean/reverse=patched correcte. REV-0004 #1/#2/#5 absorbés. Scope jalons 9-14 respecté.
+
+    **5 notes mineures** :
+    1. Smoke test `--series tests/fixtures/series.json` échoue sur apply/diff (patches_dir = series_dir, mais fixtures ont `patches/*.patch` en sous-dossier). Convention prod (co-located) fonctionne.
+    2. Multi-target asymétrie `evaluate()` propagation — acceptable mono-target.
+    3. `.lock` partagé entre series distinctes — conforme mono-repo Phase 3.
+    4. Caveats executor #3/#4 (cross-module underscored, flock heuristique bash) acceptés.
+    5. Verify stub + codes retour à affiner jalons 9+.
+
+    **Backlog noté** par verificator : documenter convention `patches/series.json + patches/*.patch` dans README utilisateur (jalon 11+).
+
+    ## Commit Phase 3 jalons 5-8
+
+    Comme pour jalons 1-4, le fix sémantique est survenu **avant tout commit**. 1 seul commit propre (règle "exception pre-commit" que j'ai ajoutée à memory:kiss-orchestrator).
+
+    **Proposition** : `feat(patch-system): Phase 3 - jalons 5-8 detect composite + apply + rollback + CLI polish`
+
+    OK pour commit ? (yes / autre)
+  rationale: ''

@@ -1,0 +1,29 @@
+{
+  "sessions": [
+    {
+      "id": "20260415-075913",
+      "created": "2026-04-15T07:59:13",
+      "status": "in_progress",
+      "title": ""
+    },
+    {
+      "id": "20260416-180815",
+      "created": "2026-04-16T18:08:15",
+      "status": "in_progress",
+      "title": "Obsidian Link Fixer"
+    },
+    {
+      "id": "20260419-081905",
+      "created": "2026-04-19T08:19:05",
+      "status": "in_progress",
+      "title": "my-obsidian-wiki — Mise en production VPS"
+    },
+    {
+      "id": "20260420-104751",
+      "created": "2026-04-20T10:47:51",
+      "status": "in_progress",
+      "title": "obsidian-wiki Vendor Patch System"
+    }
+  ],
+  "claude_sessions_path": "/home/omc/.claude/projects/-home-omc-workspace-my-obsidian-wiki"
+}

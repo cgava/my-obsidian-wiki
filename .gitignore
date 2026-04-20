@@ -1,5 +1,4 @@
 # kiss-claw session data
-.kiss-claw/sessions/
 
 # omc state
 .omc/
@@ -13,3 +12,5 @@ __pycache__/
 
 # patch-system runtime lock
 patches/.lock
+STATE.md
+.kiss-claw/agents

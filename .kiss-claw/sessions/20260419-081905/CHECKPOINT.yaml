@@ -1,0 +1,55 @@
+session: "20260419-081905"
+created: "2026-04-19T06:58:04"
+
+need:
+why: |
+  Raison profonde : usage quotidien personnel du wiki + stabiliser avant nouvelles features
+  Catégorie : feature
+raw: |
+  je veux maintenant utiliser my-obsidian-wiki en production
+  j ai un VPS, avec un utilisateur dédié, pour accueillir l application complète
+  l application est basée sur Claude CLI, obsidian wiki, qmd mcp serveur et airflow (etl python)
+  certains composants sont disponibles déjà compilés, d autres je les développe moi même, d autres sont des forks
+elicited: |
+  Besoin concret d utiliser le wiki au quotidien (mono-utilisateur)
+  Stabiliser ce qui existe avant d ajouter de nouvelles features
+  Connait Ansible + GitLab CI (usage pro), veut le build/test externalisé
+  Pas fermé à Docker Compose
+  VPS existant mais user applicatif pas encore créé
+  GitLab.com existant
+constraints: |
+  Mono-utilisateur uniquement
+  Pas de multi-utilisateur, pas de HA, pas de Kubernetes
+  Stabilisation, pas de nouvelles features
+
+log:
+  - agent: "kiss-orchestrator"
+    claude_session: "b0fb239f-6ccc-4363-bc01-ad8f1360bcf5"
+    timestamp: "2026-04-19T12:23:36Z"
+    task: "Délégation kiss-verificator — Revue rework REV-0001 (2e cycle)"
+    result: "En cours — focus sur vérification des 4 fixes appliqués"
+    children:
+      - agent: "kiss-executor"
+        claude_session: "agent-aaee8e9e01d316ba7"
+        timestamp: "2026-04-19T10:47:04Z"
+        task: "Rédaction état de l'art frameworks agentiques CI/CD pour mini-DSI (document markdown, français, 600-1000 lignes)"
+        result: "Document créé à /home/omc/workspace/my-obsidian-wiki/docs/400-tp/260419-etat-art-agentic-cicd.md (603 lignes). Structure : 9 sections principales + 6 annexes (A coût LLM, B matrice patterns×parc, C observabilité agents, D relation kiss-claw, E glossaire, F check-list démarrage). Contenu : cadrage agenticité L1/L2/L3 ; catégorisation en 6 familles (frameworks agents généralistes, agents DevOps/SRE, moteurs CI/CD programmables, serveurs MCP, plateformes self-hosted, offres forges) ; tableau comparatif 15 projets avec ordres de grandeur stars (non vérifiés en direct) ; 6 patterns architecturaux (orchestrateur central, fleet, MCP-bus, GitOps+agents, event-driven, combinaisons) ; analyse fit pour VPS mono-host Ansible+GitLab CI+Claude Code+MCP ; considérations sécurité ; choix de la colle (GitLab CI vs n8n vs Temporal vs LangGraph) ; 3 scénarios opérationnels (déploiement, triage alerte, rotation secrets) ; recommandations MVP weekend vs phase 2-3 ; critères de choix ; erreurs classiques observées ; anti-patterns ; watchlist avec critères d'évaluation ; sources. Caveats pour kiss-verificator : chiffres de stars en ordre de grandeur uniquement (explicitement noté), projets MCP Ansible cités au conditionnel car écosystème volatile, pas de WebFetch utilisé (connaissance jan 2026 + context user)."
+        children: []
+      - agent: "kiss-verificator"
+        claude_session: "agent-adf83619a2572a090"
+        timestamp: "2026-04-19T11:05:00Z"
+        task: "Revue document état de l'art frameworks agentiques CI/CD"
+        result: "Verdict: approved-with-notes. Document substantiel (603 lignes), structure conforme au cahier des charges (9 sections + 6 annexes, 6 catégories, tableau 7 colonnes, 5 patterns + combinaisons, MVP + phase 2-3 + anti-patterns, watchlist 7 entrées), ton neutre et nuancé, aucune winner-takes-all. Points forts : cadrage L1/L2/L3 + 3 questions qualifiantes, respect strict du profil user (K8s écarté, GitLab CI/Ansible socle, MCP natif), §6.3 sécurité et §7.5 anti-patterns directement opérationnels, scénarios §6.5 concrets, annexe D kiss-claw lucide. Issues minor : [P1] référence croisée §6.4 ligne 300 renvoie à 'scénario B ci-dessus' alors que le Scénario B est défini ligne 326 (plus bas) ; [P1] numérotation §6 inconsistante (6.1/6.2 absents, saut à 6.3) ; [P2] légère tension sur MCP Ansible ligne 427 (recommandé sans rappel d'immaturité) ; [P2] longueur au plancher 603/1000. Recommandation : ready to share with user sous réserve de deux corrections cosmétiques (P1), items P2 peuvent attendre. Aucune issue bloquante sur le fond. For kiss-orchestrator: proceed to next step."
+        children: []
+      - agent: "kiss-executor"
+        claude_session: "agent-a174aa5a7e585d007"
+        timestamp: "2026-04-19T12:23:12Z"
+        task: "Rework REV-0001 — correction 2 P1 + 2 P2 sur état de l'art agentique CI/CD (260419-etat-art-agentic-cicd.md)"
+        result: "4 corrections appliquées. P1 référence croisée §6.4 ligne 300: remplacé 'scénario B ci-dessus' par 'cf. scénario B en §6.5 ci-dessous'. P1 numérotation §6: ajouté préfixes 6.1 (Profil) et 6.2 (Forces et écueils) pour harmoniser avec 6.3/6.4/6.5. P2 MCP Ansible: ajouté au §7.5 anti-patterns une réserve explicite sur l'immaturité de l'écosystème MCP Ansible avec renvoi à §3.4/watchlist §8.2 et repli wrapper ansible-runner maison. P2 longueur: 603→757 lignes (+154). Sections étoffées: §5.1 Orchestrateur central (+ASCII flow, +30 lignes), §5.4 GitOps (+layout repo type, +20 lignes), §6.5 Scénarios A/B/C (+commandes concrètes et trade-offs, +50 lignes) + ajout scénario D procédure de repli (+15 lignes), Annexe D kiss-claw (+parallèles structurels mini-DSI, prompts rôles executor-ops/verificator-ops, +45 lignes), Annexe F (+8 étapes durcissement: backup, audit, kill-switch, staging, budget LLM, rotation secrets, revue MCP, runbooks, +20 lignes). Aucune référence cassée, numérotation §6 cohérente vérifiée, ton neutre et français préservés."
+        children: []
+      - agent: "kiss-verificator"
+        claude_session: "agent-a3bf7b29d87dadfcd"
+        timestamp: "2026-04-19T12:25:58Z"
+        task: "Revue rework REV-0002 — vérification 4 fixes sur doc etat-art-agentic-cicd"
+        result: "Verdict: approved. 4 fixes correctement appliqués (ref croisée §6.4, numérotation §6.1-6.5, MCP Ansible §7.5, longueur 757 lignes). Caveats executor acceptés (scénario D + prompts annexe D). Ready to share with user, definitive. Obs mineure non bloquante: ligne 51 'cinq' → 'six' familles."
+        children: []

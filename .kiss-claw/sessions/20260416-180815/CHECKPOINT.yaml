@@ -1,0 +1,39 @@
+session: "20260416-180815"
+created: "2026-04-16T16:36:16"
+
+need:
+why: |
+  Raison profonde : la structure du vault Obsidian va evoluer regulierement, besoin d un outil reutilisable pour reparer les liens apres chaque reorganisation.
+  Categorie : feature
+raw: |
+  J ai besoin de deplacer des fichiers dans knlg-repo. Obsidian met certains liens a jour mais pas les proprietes frontmatter. Un script pour prendre une liste de fichiers deplaces et reparer tous les liens partout dans le vault.
+elicited: |
+  Besoin recurrent, pas ponctuel. Le vault va etre reorganise plusieurs fois. Le script doit etre CLI avec --dry-run, --help, accepter fichiers en args ou via fichier liste. Rapport detaille par type de lien.
+constraints: |
+  Bash ou Python. Uniquement reparer, pas deplacer. Liens wikilinks ET frontmatter.
+
+log:
+  - agent: "kiss-orchestrator"
+    claude_session: "c300af89-c988-4c99-bc52-3058377812a9"
+    timestamp: "2026-04-16T19:19:33Z"
+    task: "Delegation kiss-executor — Phase 3 Test task: "Delegation kiss-verificator — Review Phase 2 implementation" validation"
+    result: "En cours — delegue a kiss-executor"
+    children:
+      - agent: "kiss-executor"
+        claude_session: "agent-a22d51e124a78b1bd"
+        timestamp: "2026-04-16T16:39:07Z"
+        task: "Phase 1 — Exploration & Design du Link Fixer"
+        result: "Wrote docs/link-fixer-design.md. Found 3 wikilink formats (path|alias, path-only, bare-name), 1 frontmatter property with file refs (sources in 5 format variants), no markdown links in curated pages. Identified 4 broken link types: Type A (14 frontmatter:sources with stale _raw/ paths), Type B (bare-name wikilinks for 3 moved files across 14 files), Type C (.manifest.json stale keys), Type D (archive copies, frozen). Designed CLI spec with --dry-run, --file, --include-archives, --include-manifest, typed report format showing link category per fix."
+        children: []
+      - agent: "kiss-executor"
+        claude_session: "agent-a2e3f443a82cab336"
+        timestamp: "2026-04-16T18:39:05Z"
+        task: "Phase 2 -- Implementation fix-links.py"
+        result: "Created /home/omc/workspace/my-obsidian-wiki/knlg-repo/scripts/fix-links.py (450 lines). Features: CLI argparse with --dry-run/-n, --verbose/-v, --quiet/-q, --backup, --include-archives, --include-manifest, --file/-f, --vault, positional args. Scan logic finds moved files via rglob, discovers old paths from frontmatter+wikilinks+manifest, builds change set. Repairs wikilinks (bare, path, aliased) and frontmatter sources (regex, no pyyaml). Manifest JSON update for source_key and page_source. Git dirty check warning. Dry-run tested against real vault: 49 links detected across 22 files (26 frontmatter:sources + 23 wikilink:body). Manifest mode adds 8 more changes. Zero external dependencies. Caveats: none."
+        children: []
+      - agent: "kiss-executor"
+        claude_session: "agent-a0aa29cff95742f6f"
+        timestamp: "2026-04-16T19:21:42Z"
+        task: "Phase 3 — Test & validation fix-links.py: dry-run test on 5 moved files, real application, post-fix verification, --help check"
+        result: "Dry-run OK (43 links in 21 files for .md, 6 links in 6 files for .json). Real run applied: 49 links fixed in 22 files. Post-fix verification: all wikilinks and frontmatter sources correctly updated to new _raw/s0/ paths. --help is clear with examples. Bug found: re-running dry-run after fix shows false-positive no-op changes (old==new) in frontmatter sources report — cosmetic only, no data corruption."
+        children: []
