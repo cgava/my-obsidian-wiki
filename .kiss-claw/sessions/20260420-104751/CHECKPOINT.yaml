@@ -664,3 +664,15 @@ log:
 
     OK pour commit ? (yes / autre)
   rationale: ''
+- agent: "kiss-orchestrator"
+  claude_session: "2e830b55-266a-4037-b915-85c179a78276"
+  timestamp: "2026-04-20T14:41:52Z"
+  task: "Délégation kiss-verificator — Revue doc Diataxis scripts/docs/ (5 fichiers, 1506 l)"
+  result: "En cours — délégué à kiss-verificator. Focus revue : Diataxis discipline, exactitude CLI reproduites, citations verbatim, périmètre J1-J8."
+  children:
+    - agent: "kiss-executor"
+      claude_session: "agent-a1f0e99f259bbd3cd"
+      timestamp: "2026-04-20T14:40:42Z"
+      task: "Produire la documentation utilisateur du patch-system au format Diataxis sous scripts/docs/ — 5 fichiers Markdown en français pour le mainteneur du wiki, périmètre jalons J1-J8 (list/status/describe/diff/apply/rollback), verify/refresh/record documentés comme à venir."
+      result: "5 fichiers créés sous scripts/docs/ : README.md (49 l, index Diataxis), tutorial.md (321 l, parcours guidé 9 étapes sur fixtures vendor-mini), how-to.md (279 l, 10 recettes), reference.md (482 l, man-page CLI + schéma series.json + états détection + flock + sévérité + env), explanation.md (375 l, principes + détection composite + séparation series/runtime + héritage quilt/DEP-3/etc-update + trade-offs). Toutes les commandes CLI documentées ont été exécutées en vrai (list/status/describe/diff --no-color/apply --dry-run/apply/apply idempotent/rollback/rollback refusé/apply partial/verify/refresh/record/list --json/status --only-failing). Citations verbatim du design §3.2 (schéma), §4.1 (exit codes), §4.3 (messages), §5 (detect composite via docstring detect.py), §5.1 (granularité), §5.2 (no auto-commit), §5.5 (escalade drift), §5.7 (flock), §6.2 (Python 3.10+). Citations verbatim ADR-0001 (vendor strategy) et ADR-0002 (series/runtime). Caveats : (1) flags --interactive/--force/--auto-3way du design §4.1 absents du parser argparse J8 — documentés comme à venir dans reference.md §1.5 ; (2) le layout fixtures tests/fixtures/series.json + tests/fixtures/patches/*.patch nest pas le layout canonique attendu par le dispatcher (patches/series.json + patches/*.patch co-located) — le tutoriel crée un bac à sable éphémère avec ce layout canonique via mktemp+cp+git init. Pas de commit (attente revue verificator)."
+      children: []
