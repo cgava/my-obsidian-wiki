@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# patch-system — bash dispatcher for the Python patch_system package.
+#
+# Thin CLI shim: exports PATCH_SYSTEM_ROOT (project root containing patches/)
+# and delegates argv to `python3 -m patch_system`. No business logic here.
+#
+# See docs/260420-patch-system-design.md §2.2 (CLI dispatcher responsibilities).
+
+set -euo pipefail
+
+# Resolve project root from this script's location (scripts/patch-system).
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+export PATCH_SYSTEM_ROOT="${PATCH_SYSTEM_ROOT:-${PROJECT_ROOT}}"
+
+# Make the scripts/ dir importable so `python3 -m patch_system` resolves.
+export PYTHONPATH="${SCRIPT_DIR}${PYTHONPATH:+:${PYTHONPATH}}"
+
+exec python3 -m patch_system "$@"

@@ -1,0 +1,22 @@
+Description: README — add local notes section
+ Add a "Local notes" section to the vendor README to document
+ that the patch-system fixtures tree has been customised.
+Origin: vendor
+Author: test-fixture <test@example.invalid>
+Forwarded: no
+Last-Update: 2026-04-20
+X-Audit-Ref: tests/fixtures/README.md#0001
+X-Severity: COSMETIQUE
+X-Baseline-Sha256: 8dfa1bea1fad11f744c49a033b15d6523c4da143fa37ae5c99289b9c20cb930d
+X-Patched-Sha256: 2d3f15457d3a07c545335d6ff73c1c8b1d8d65441120b94832eb944019d077c0
+---
+--- a/README.md
++++ b/README.md
+@@ -1,3 +1,7 @@
+ # vendor-mini
+
+ Minimal fixture simulating vendor/obsidian-wiki pristine.
++
++## Local notes
++
++Patched by patch-system 0001.

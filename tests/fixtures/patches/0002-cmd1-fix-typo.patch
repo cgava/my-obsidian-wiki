@@ -1,0 +1,21 @@
+Description: cmd1 — expand "cmd" to "command" in output wording
+ Cosmetic rewording of cmd1.sh log line for clarity.
+Origin: vendor
+Author: test-fixture <test@example.invalid>
+Forwarded: no
+Last-Update: 2026-04-20
+X-Audit-Ref: tests/fixtures/README.md#0002
+X-Severity: COSMETIQUE
+X-Baseline-Sha256: e1b2b46114293ea085f91b6a36371821eafd9b94449203e12d2a2debe9afe34e
+X-Patched-Sha256: 38ae63d40c263100b1bdcb6e4ea064ff4a3544f85de7f491cde5b9bd44275d8a
+---
+--- a/bin/cmd1.sh
++++ b/bin/cmd1.sh
+@@ -1,5 +1,5 @@
+ #!/usr/bin/env bash
+-# cmd1 — sample command (pristine).
++# cmd1 — sample command (patched).
+ set -euo pipefail
+-echo "running cmd one"
++echo "running command one"
+ exit 0

@@ -6,3 +6,7 @@
 
 # Agent memory
 .claude/agent-memory/
+
+# patch_system bytecode
+__pycache__/
+*.pyc

@@ -1,0 +1,23 @@
+Description: cmd2 — rewording (no longer applies — vendor drifted)
+ The baseline sha recorded here is a pre-drift revision of cmd2.sh
+ that no longer matches the vendor working tree. Detection by
+ sha256-only will therefore return "dirty" for this patch.
+Origin: vendor
+Author: test-fixture <test@example.invalid>
+Forwarded: no
+Last-Update: 2026-04-10
+X-Audit-Ref: tests/fixtures/README.md#0003
+X-Severity: TROMPEUR
+X-Baseline-Sha256: 0000000000000000000000000000000000000000000000000000000000000000
+X-Patched-Sha256: 1111111111111111111111111111111111111111111111111111111111111111
+---
+--- a/bin/cmd2.sh
++++ b/bin/cmd2.sh
+@@ -1,5 +1,5 @@
+ #!/usr/bin/env bash
+-# cmd2 — sample command (pre-drift baseline).
++# cmd2 — sample command (patched).
+ set -euo pipefail
+-echo "cmd2 original output"
++echo "cmd2 patched output"
+ exit 0
