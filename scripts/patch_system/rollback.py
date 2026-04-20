@@ -26,13 +26,27 @@ from pathlib import Path
 from typing import Any
 
 from patch_system import apply as apply_mod
-from patch_system import detect, registry
+from patch_system import detect, registry, runtime as runtime_mod
 
 
 def _git_apply_reverse(
-    patch_path: Path, vendor_root: Path, *, check_only: bool = False
+    patch_path: Path,
+    vendor_root: Path,
+    *,
+    check_only: bool = False,
+    extra_args: list[str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    args = ["git", "apply", "--reverse", "--index"]
+    """Shell out to ``git apply --reverse`` with the args from runtime.json.
+
+    If ``extra_args`` is supplied it REPLACES the default
+    ``["--reverse", "--index"]`` — the caller is responsible for keeping
+    ``--reverse`` in it (design §3.3 ``rollback.args`` is explicit).
+    """
+    args = ["git", "apply"]
+    if extra_args:
+        args.extend(extra_args)
+    else:
+        args.extend(["--reverse", "--index"])
     if check_only:
         args.append("--check")
     args.append(str(patch_path))
@@ -54,6 +68,7 @@ def rollback_patch(
     yes: bool = False,
     registry_path: Path | None = None,
     all_records: dict[str, Any] | None = None,
+    runtime: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Reverse-apply `record.patch_file` via `git apply --reverse --index`.
 
@@ -71,6 +86,13 @@ def rollback_patch(
     """
     rid = record.get("id", "<unknown>")
     patch_path = patches_dir / record.get("patch_file", "")
+
+    # Resolve rollback strategy from runtime.json (§3.3 line 243).
+    if runtime is None:
+        runtime = runtime_mod.load_runtime(patches_dir)
+    strategy = runtime_mod.resolve_strategy(rid, runtime)
+    rb_section = strategy.get("rollback", {}) or {}
+    rb_args = list(rb_section.get("args", []) or []) or None
 
     if not patch_path.exists():
         return apply_mod._result(
@@ -103,7 +125,7 @@ def rollback_patch(
     initial_state = probe["state"]
 
     if dry_run:
-        chk = _git_apply_reverse(patch_path, vendor_root, check_only=True)
+        chk = _git_apply_reverse(patch_path, vendor_root, check_only=True, extra_args=rb_args)
         if chk.returncode == 0:
             return apply_mod._result(
                 success=True,
@@ -131,7 +153,7 @@ def rollback_patch(
         )
 
     # Actually reverse.
-    res = _git_apply_reverse(patch_path, vendor_root, check_only=False)
+    res = _git_apply_reverse(patch_path, vendor_root, check_only=False, extra_args=rb_args)
     if res.returncode != 0:
         return apply_mod._result(
             success=False,

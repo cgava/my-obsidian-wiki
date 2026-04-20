@@ -33,8 +33,9 @@ is the record's `order` field zero-padded to 4 digits. The CLI finds
 them via `PATCH_SYSTEM_ROOT/patches/` — any other layout breaks the
 dispatcher.
 
-`runtime.json` (design §3.3) is not yet emitted by any engine and is
-reserved for Phase-4 overrides.
+`runtime.json` (design §3.3) is now consumed by `apply` / `rollback`.
+See the section "Contourner les fichiers gitignored" below for the
+canonical use case.
 
 ## How to add a new patch
 
@@ -101,6 +102,47 @@ moved to `patches/archive/` and their record flips to
 Keeping obsolete records visible lets future maintainers see why a
 particular fix was introduced, even if the upstream later fixed it.
 
+## Contourner les fichiers gitignored
+
+Certains targets (ex. `vendor/obsidian-wiki/.env`) sont déclarés dans le
+`.gitignore` du vendor repo. Le moteur par défaut utilise
+`git apply --index` qui refuse les fichiers absents de l'index avec
+`error: <file>: does not exist in index`. Pour contourner ça sans
+modifier le vendor tree ni toucher `series.json`, utilise un override
+`runtime.json` (design §3.3) qui route le record vers `patch(1)` :
+
+```json
+{
+  "schema_version": "1",
+  "overrides": {
+    "b3-vendor-env-remove": {
+      "apply":    {"method": "patch", "args": ["-p1", "-N"]},
+      "rollback": {"method": "patch", "args": ["-p1", "-R"]}
+    }
+  }
+}
+```
+
+- `patch -p1 -N` applique le diff en mode forward, refuse un ré-apply
+  idempotent (`-N` = "do not reverse/forward patches that seem to be
+  already applied").
+- `patch -p1 -R` applique en reverse pour le rollback.
+- `patch(1)` n'a pas besoin que le fichier soit tracké par git, il
+  opère directement sur le working tree.
+
+**Variantes** :
+- `args: ["--no-index", "-p1"]` sur `method: "git-apply"` : plus léger
+  mais `git apply --no-index` ne met pas à jour l'index non plus — utile
+  pour des fichiers vraiment jamais destinés à être commités.
+
+**Trade-off** : avec `patch(1)`, le fichier n'est pas stagé après apply
+(cohérent puisqu'il est gitignored). Les `.rej` éventuels restent dans
+le working tree à la racine de la cible.
+
+Le dépôt inclut un `patches/runtime.json` d'exemple qui active ce
+routage pour `b3-vendor-env-remove`. Renomme ou supprime ce fichier
+pour repasser aux defaults.
+
 ## Caveats
 
 ### B3 deviation — vendor/.env is gitignored
@@ -115,15 +157,10 @@ entirely). The pilot record `b3-vendor-env-remove` opts instead for
 - The jalon-6 apply engine uses `git apply --index`, which requires
   the target to exist in the vendor repo's index. Untracked files fail
   fast with `error: <file>: does not exist in index`.
-- Consequence : `apply b3-vendor-env-remove --dry-run` currently
-  returns **exit 1** with that error. This is a known framework
-  limitation (the `--index` flag is hard-coded in `apply.py` / `detect.py`
-  — future jalon will allow opting out per-record via `runtime.json`
-  overrides, design §3.3).
-- Workaround for now : apply B3 manually with `patch -p1 <
-  patches/0003-vendor-env-remove.patch` from the vendor tree, or wait
-  for the jalon-14 `runtime.json` override path to disable `--index`
-  per record.
+- **Fixed in jalon 14** : `patches/runtime.json` now routes
+  `b3-vendor-env-remove` through `patch(1) -p1 -N` (see
+  "Contourner les fichiers gitignored" above). `apply --dry-run
+  b3-vendor-env-remove` returns exit 0.
 
 The DEP-3 header of `0003-vendor-env-remove.patch` documents the
 deviation inline (`Description:` block).

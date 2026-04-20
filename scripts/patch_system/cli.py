@@ -19,10 +19,59 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import contextlib
+
 from patch_system import apply as apply_mod
 from patch_system import detect, registry, rollback as rb_mod
 from patch_system import refresh as refresh_mod
+from patch_system import runtime as runtime_mod
 from patch_system import verify as verify_mod
+
+
+# -------------------------------------------------------------------------
+# Flock helper — design §5.7 (verbatim) requires `patches/.lock` around
+# every mutating operation. For `--all` runs, one lock covers the whole
+# iteration (brief line: "1 flock pour la run entière, pas par record").
+# -------------------------------------------------------------------------
+
+
+@contextlib.contextmanager
+def _patches_flock(patches_dir: Path):
+    """Acquire a non-blocking advisory lock on ``patches/.lock``.
+
+    Uses :mod:`fcntl` when available (POSIX). A no-op fallback is used
+    when fcntl is missing (non-POSIX dev platforms) — correctness
+    depends on POSIX in practice, but tests must still pass cross-OS.
+    """
+    lock_path = patches_dir / ".lock"
+    try:
+        patches_dir.mkdir(parents=True, exist_ok=True)
+        fh = open(lock_path, "a+")
+    except OSError as e:
+        print(f"patch-system: cannot open lock {lock_path}: {e}", file=sys.stderr)
+        raise
+    try:
+        try:
+            import fcntl  # noqa: F401
+            try:
+                fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                print(
+                    "patch-system: another operation in progress "
+                    "(patches/.lock held)",
+                    file=sys.stderr,
+                )
+                raise SystemExit(1)
+        except ImportError:
+            pass  # best-effort on non-POSIX
+        yield fh
+    finally:
+        try:
+            import fcntl
+            fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+        except Exception:
+            pass
+        fh.close()
 
 
 # -------------------------------------------------------------------------
@@ -401,38 +450,182 @@ def _cmd_diff(args: argparse.Namespace) -> int:
 # -------------------------------------------------------------------------
 
 
+def _apply_one(
+    rec, series_path, vendor_root, patches_dir, data, args, runtime,
+):
+    """Invoke apply_patch with the current CLI flags. Shared between
+    single-id `apply` and `apply --all`.
+    """
+    return apply_mod.apply_patch(
+        rec, vendor_root, patches_dir,
+        dry_run=args.dry_run, yes=args.yes,
+        interactive=getattr(args, "interactive", False),
+        force=getattr(args, "force", False),
+        auto_3way=getattr(args, "auto_3way", False),
+        registry_path=series_path if not args.dry_run else None,
+        all_records=data if not args.dry_run else None,
+        runtime=runtime,
+        stream=sys.stdout,
+    )
+
+
 def _cmd_apply(args: argparse.Namespace) -> int:
     series_path, vendor_root, patches_dir, data = _load_ctx(args)
+    runtime = runtime_mod.load_runtime(patches_dir)
+
+    if getattr(args, "all", False):
+        return _cmd_apply_all(
+            args, series_path, vendor_root, patches_dir, data, runtime,
+        )
+
+    if not args.rid:
+        print("apply: missing record id (or use --all)", file=sys.stderr)
+        return 2
     rec = _record_by_id(data, args.rid)
     if rec is None:
         print(f"no record with id={args.rid!r}", file=sys.stderr)
         return 1
 
-    result = apply_mod.apply_patch(
+    with _patches_flock(patches_dir) if not args.dry_run else contextlib.nullcontext():
+        result = _apply_one(
+            rec, series_path, vendor_root, patches_dir, data, args, runtime,
+        )
+    print(result["message"])
+    return 0 if result["success"] else 1
+
+
+def _cmd_apply_all(
+    args, series_path, vendor_root, patches_dir, data, runtime,
+) -> int:
+    """Apply every ``active`` record in ascending ``order`` (§2 lines 106-109).
+
+    - ``--stop-on-fail`` : break on the first failure.
+    - Without it : continue, collect errors, exit 1 if any record failed.
+    - ``q`` in the interactive menu sets ``result["quit"]`` — we break
+      iteration but treat the run as user-aborted (exit 0, no failure).
+    - Flock is acquired once for the whole iteration (§5.7).
+    """
+    records = [
+        r for r in data.get("records", [])
+        if r.get("status", "active") == "active"
+    ]
+    records.sort(key=lambda r: r.get("order", 0))
+
+    applied = skipped = failed = 0
+    errors: list[str] = []
+    user_quit = False
+
+    ctx = (
+        _patches_flock(patches_dir)
+        if not args.dry_run
+        else contextlib.nullcontext()
+    )
+    with ctx:
+        for rec in records:
+            result = _apply_one(
+                rec, series_path, vendor_root, patches_dir, data, args, runtime,
+            )
+            print(result["message"])
+            if result.get("quit"):
+                user_quit = True
+                break
+            if result["success"]:
+                if result.get("noop"):
+                    skipped += 1
+                else:
+                    applied += 1
+            else:
+                failed += 1
+                errors.append(result["message"])
+                if getattr(args, "stop_on_fail", False):
+                    break
+
+    print(
+        f"apply --all: {applied} applied, {skipped} skipped, {failed} failed"
+        + (" (user quit)" if user_quit else "")
+    )
+    if user_quit:
+        return 0
+    return 0 if failed == 0 else 1
+
+
+def _rollback_one(
+    rec, series_path, vendor_root, patches_dir, data, args, runtime,
+):
+    return rb_mod.rollback_patch(
         rec, vendor_root, patches_dir,
         dry_run=args.dry_run, yes=args.yes,
         registry_path=series_path if not args.dry_run else None,
         all_records=data if not args.dry_run else None,
+        runtime=runtime,
     )
-    print(result["message"])
-    return 0 if result["success"] else 1
 
 
 def _cmd_rollback(args: argparse.Namespace) -> int:
     series_path, vendor_root, patches_dir, data = _load_ctx(args)
+    runtime = runtime_mod.load_runtime(patches_dir)
+
+    if getattr(args, "all", False):
+        return _cmd_rollback_all(
+            args, series_path, vendor_root, patches_dir, data, runtime,
+        )
+
+    if not args.rid:
+        print("rollback: missing record id (or use --all)", file=sys.stderr)
+        return 2
     rec = _record_by_id(data, args.rid)
     if rec is None:
         print(f"no record with id={args.rid!r}", file=sys.stderr)
         return 1
 
-    result = rb_mod.rollback_patch(
-        rec, vendor_root, patches_dir,
-        dry_run=args.dry_run, yes=args.yes,
-        registry_path=series_path if not args.dry_run else None,
-        all_records=data if not args.dry_run else None,
-    )
+    with _patches_flock(patches_dir) if not args.dry_run else contextlib.nullcontext():
+        result = _rollback_one(
+            rec, series_path, vendor_root, patches_dir, data, args, runtime,
+        )
     print(result["message"])
     return 0 if result["success"] else 1
+
+
+def _cmd_rollback_all(
+    args, series_path, vendor_root, patches_dir, data, runtime,
+) -> int:
+    """Pop records in descending order (design §4.1 line 307, verbatim)."""
+    records = [
+        r for r in data.get("records", [])
+        if r.get("status", "active") == "active"
+    ]
+    records.sort(key=lambda r: r.get("order", 0), reverse=True)
+
+    rolled = failed = skipped = 0
+    ctx = (
+        _patches_flock(patches_dir)
+        if not args.dry_run
+        else contextlib.nullcontext()
+    )
+    with ctx:
+        for rec in records:
+            # Skip records whose last_result isn't "patched" — the guard
+            # in rollback_patch already handles this, but skipping pre-
+            # hand produces cleaner output for --all.
+            if rec.get("last_result") != "patched":
+                skipped += 1
+                print(f"[{rec.get('id')}] skip (last_result != 'patched')")
+                continue
+            result = _rollback_one(
+                rec, series_path, vendor_root, patches_dir, data, args, runtime,
+            )
+            print(result["message"])
+            if result["success"]:
+                rolled += 1
+            else:
+                failed += 1
+                if getattr(args, "stop_on_fail", False):
+                    break
+
+    print(
+        f"rollback --all: {rolled} reverted, {skipped} skipped, {failed} failed"
+    )
+    return 0 if failed == 0 else 1
 
 
 # -------------------------------------------------------------------------
@@ -560,17 +753,51 @@ def build_parser() -> argparse.ArgumentParser:
         help="Only print the list of targets touched by the patch.",
     )
 
-    # apply <id>
-    p_apply = sub.add_parser("apply", help="Apply a patch.")
-    p_apply.add_argument("rid", metavar="id")
+    # apply <id> | apply --all
+    p_apply = sub.add_parser(
+        "apply",
+        help="Apply a patch (or --all for the whole series).",
+    )
+    p_apply.add_argument("rid", metavar="id", nargs="?", default=None)
     p_apply.add_argument("--dry-run", action="store_true")
     p_apply.add_argument("--yes", action="store_true")
+    p_apply.add_argument(
+        "--interactive", action="store_true",
+        help="Force the §4.2 arbitration menu even on clean states.",
+    )
+    p_apply.add_argument(
+        "--force", action="store_true",
+        help="Implicit 'y' on every ambiguous state (overwrite local).",
+    )
+    p_apply.add_argument(
+        "--auto-3way", dest="auto_3way", action="store_true",
+        help="Opt-in (§5.5): try git apply --3way --index before prompting.",
+    )
+    p_apply.add_argument(
+        "--all", action="store_true",
+        help="Apply every active record in order.",
+    )
+    p_apply.add_argument(
+        "--stop-on-fail", dest="stop_on_fail", action="store_true",
+        help="With --all: stop at the first failure.",
+    )
 
-    # rollback <id>
-    p_rb = sub.add_parser("rollback", help="Reverse-apply a patch.")
-    p_rb.add_argument("rid", metavar="id")
+    # rollback <id> | rollback --all
+    p_rb = sub.add_parser(
+        "rollback",
+        help="Reverse-apply a patch (or --all to pop the whole stack).",
+    )
+    p_rb.add_argument("rid", metavar="id", nargs="?", default=None)
     p_rb.add_argument("--dry-run", action="store_true")
     p_rb.add_argument("--yes", action="store_true")
+    p_rb.add_argument(
+        "--all", action="store_true",
+        help="Reverse every applied record in descending order.",
+    )
+    p_rb.add_argument(
+        "--stop-on-fail", dest="stop_on_fail", action="store_true",
+        help="With --all: stop at the first failure.",
+    )
 
     # verify
     p_ver = sub.add_parser(
