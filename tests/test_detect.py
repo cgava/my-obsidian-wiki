@@ -44,7 +44,12 @@ class TestSingleTarget(unittest.TestCase):
         self.assertEqual(detect.detect_state(p, _VENDOR_PATCHED), "patched")
 
     def test_detect_dirty_unknown_hash(self):
-        # Patch 0003 uses placeholder sha256s that no real file matches.
+        # Patch 0003 references a conceptual "pristine" baseline sha; the
+        # on-disk vendor-mini/bin/cmd2.sh carries a top blank-line drift,
+        # so its sha matches neither baseline_sha256 nor patched_sha256.
+        # Aggregated sha-only detect returns `dirty` (composite detection
+        # reclassifies it to `clean`+cosmetic on forward --check success —
+        # see TestEvaluateComposite).
         p = _patch_by_id("t0003-cmd2-drifted")
         self.assertEqual(detect.detect_state(p, _VENDOR_PRISTINE), "dirty")
 
@@ -165,6 +170,117 @@ class TestMultiTarget(unittest.TestCase):
             ],
         }
         self.assertEqual(detect.detect_state(p, _VENDOR_PRISTINE), "dirty")
+
+
+class TestEvaluateComposite(unittest.TestCase):
+    """Composite detection (jalon 5) — sha256 + git apply --check.
+
+    Semantic mapping:
+      - forward `--check` succeeds → state=clean, drift_hint=cosmetic
+        (pre-patch compatible state with baseline drift).
+      - reverse `--check` succeeds → state=patched, drift_hint=cosmetic
+        (post-patch compatible state with patched drift).
+
+    Exercised against the enriched fixture set:
+      - t0003-cmd2-drifted      cosmetic drift (blank line drift)
+      - t0004-cmd2-semantic-drift semantic drift (partial: 1/2 hunks)
+    """
+
+    PATCHES_DIR = _FIXTURES / "patches"
+
+    def setUp(self) -> None:
+        # Skip if git is not installed. Composite detection requires it.
+        import shutil as _shutil
+
+        if not _shutil.which("git"):
+            self.skipTest("git not installed — composite detection skipped")
+
+    def test_evaluate_returns_full_dict(self):
+        """evaluate() returns the contract dict: state/per_target/
+        can_auto_3way/drift_hint keys always present."""
+        p = _patch_by_id("t0001-readme-add-section")
+        result = detect.evaluate(p, _VENDOR_PRISTINE, self.PATCHES_DIR)
+        for key in ("state", "per_target", "can_auto_3way", "drift_hint"):
+            self.assertIn(key, result, f"missing key {key} in {result}")
+        self.assertIsInstance(result["per_target"], list)
+        self.assertEqual(len(result["per_target"]), 1)
+        # On a clean sha-match record, state stays `clean` and drift_hint
+        # is None (we never call git).
+        self.assertEqual(result["state"], "clean")
+        self.assertIsNone(result["drift_hint"])
+
+    def test_evaluate_forward_cosmetic_drift_is_clean(self):
+        """Patch 0003 on vendor-mini (pre-patch content + blank-line drift):
+        sha-agg=dirty, forward `git apply --check` succeeds → state=clean,
+        hint=cosmetic. The patch would still apply forward, so the file is
+        in a pre-patch compatible state with cosmetic drift on baseline."""
+        p = _patch_by_id("t0003-cmd2-drifted")
+        result = detect.evaluate(p, _VENDOR_PRISTINE, self.PATCHES_DIR)
+        self.assertEqual(
+            result["state"], "clean", f"result={result}"
+        )
+        self.assertEqual(result["drift_hint"], "cosmetic")
+        # per_target[0] should reflect the composite reclassification.
+        self.assertEqual(result["per_target"][0]["state"], "clean")
+
+    def test_evaluate_reverse_cosmetic_drift_is_patched(self):
+        """Patch 0003 on vendor-mini-patched (post-patch content + blank-
+        line drift): sha-agg=dirty, forward --check fails, reverse --check
+        succeeds → state=patched, hint=cosmetic. The patch can still be
+        reverted, so the file is post-patch with cosmetic drift on the
+        patched side."""
+        p = _patch_by_id("t0003-cmd2-drifted")
+        result = detect.evaluate(p, _VENDOR_PATCHED, self.PATCHES_DIR)
+        self.assertEqual(
+            result["state"], "patched", f"result={result}"
+        )
+        self.assertEqual(result["drift_hint"], "cosmetic")
+        self.assertEqual(result["per_target"][0]["state"], "patched")
+
+    def test_evaluate_semantic_drift_returns_partial_or_dirty(self):
+        """Patch 0004 on vendor-mini: 2-hunk patch, hunk 1 applyable,
+        hunk 2 rejected (upstream renamed a line). Expected: partial."""
+        p = _patch_by_id("t0004-cmd2-semantic-drift")
+        result = detect.evaluate(p, _VENDOR_PRISTINE, self.PATCHES_DIR)
+        self.assertIn(
+            result["state"],
+            ("partial", "dirty"),
+            f"expected partial or dirty, got {result}",
+        )
+        # Per-hunk split: 1/2 hunks apply → partial is the precise answer.
+        self.assertEqual(
+            result["state"], "partial", f"result={result}"
+        )
+        self.assertEqual(result["drift_hint"], "semantic")
+
+    def test_evaluate_can_auto_3way_true_for_cosmetic(self):
+        """Cosmetic drift (offset-only): `git apply --3way --check` succeeds."""
+        p = _patch_by_id("t0003-cmd2-drifted")
+        result = detect.evaluate(p, _VENDOR_PRISTINE, self.PATCHES_DIR)
+        self.assertTrue(
+            result["can_auto_3way"],
+            f"can_auto_3way should be True for cosmetic drift, got {result}",
+        )
+
+    def test_evaluate_can_auto_3way_false_for_semantic(self):
+        """Semantic drift (renamed line): 3way can't bridge the gap."""
+        p = _patch_by_id("t0004-cmd2-semantic-drift")
+        result = detect.evaluate(p, _VENDOR_PRISTINE, self.PATCHES_DIR)
+        self.assertFalse(
+            result["can_auto_3way"],
+            f"can_auto_3way should be False for semantic drift, got {result}",
+        )
+
+    def test_evaluate_clean_does_not_invoke_git(self):
+        """Sanity: a sha-matching `clean` record never hits the git path.
+
+        We smoke-test this by pointing `patches_dir` at a non-existent
+        directory — if evaluate() tried to read the .patch file we would
+        see a lookup error. With state=clean, it must stay clean.
+        """
+        p = _patch_by_id("t0001-readme-add-section")
+        result = detect.evaluate(p, _VENDOR_PRISTINE, Path("/nope/does-not-exist"))
+        self.assertEqual(result["state"], "clean")
 
 
 if __name__ == "__main__":

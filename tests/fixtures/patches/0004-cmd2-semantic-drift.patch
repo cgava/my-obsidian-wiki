@@ -1,0 +1,29 @@
+Description: cmd2 — semantic drift: one hunk applies, one does not
+ Crafted so that hunk 1 still matches the vendor working tree (context
+ line 3-6 intact), but hunk 2 references "cmd2 line three RENAMED_UPSTREAM"
+ which no longer exists in vendor-mini/bin/cmd2.sh. Forward --check AND
+ reverse --check both fail. Per-hunk split detection returns 1 applyable
+ + 1 rejected → state = "partial". can_auto_3way is false (3way can't
+ bridge the gap).
+Origin: vendor
+Author: test-fixture <test@example.invalid>
+Forwarded: no
+Last-Update: 2026-04-20
+X-Audit-Ref: tests/fixtures/README.md#0004
+X-Severity: TROMPEUR
+X-Baseline-Sha256: 28465e58d14c35b6b1426c58ab94b2e4dd0eb6b32271f466490ee26db10c8d47
+X-Patched-Sha256: 0000000000000000000000000000000000000000000000000000000000000000
+---
+--- a/bin/cmd2.sh
++++ b/bin/cmd2.sh
+@@ -3,4 +3,4 @@
+ set -euo pipefail
+
+-echo "cmd2 line one"
++echo "cmd2 LINE ONE SEMANTIC"
+ echo "cmd2 original output"
+@@ -7,3 +7,3 @@
+ echo "cmd2 original output"
+-echo "cmd2 line three RENAMED_UPSTREAM"
++echo "cmd2 line three PATCHED"
+

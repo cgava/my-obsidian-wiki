@@ -40,15 +40,32 @@
       "order": 3,
       "status": "active",
       "severity": "TROMPEUR",
-      "title": "cmd2 — patch no longer applies, vendor drifted",
+      "title": "cmd2 — reword echo line, vendor has cosmetic drift upstream",
       "audit_ref": "tests/fixtures/README.md#0003",
       "patch_file": "0003-cmd2-drifted.patch",
-      "patch_sha256": "b073b15ad963bb8e4ba303beb748d23ea2503c7a52512d56da4c1871a619512d",
+      "patch_sha256": "62818e7099d1aba1a8534767fda10ee73f89926c834d14d2ea7e0a75e2d38409",
       "targets": [
         {
           "path": "vendor/obsidian-wiki/bin/cmd2.sh",
-          "baseline_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
-          "patched_sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+          "baseline_sha256": "28465e58d14c35b6b1426c58ab94b2e4dd0eb6b32271f466490ee26db10c8d47",
+          "patched_sha256": "5d705de5250ada8c23b2785e03274409188a67528e1534f922ae177563f03616"
+        }
+      ]
+    },
+    {
+      "id": "t0004-cmd2-semantic-drift",
+      "order": 4,
+      "status": "active",
+      "severity": "TROMPEUR",
+      "title": "cmd2 — semantic drift: one hunk rejected after upstream rename",
+      "audit_ref": "tests/fixtures/README.md#0004",
+      "patch_file": "0004-cmd2-semantic-drift.patch",
+      "patch_sha256": "cb9cf71cb41da0ffc0ab175556a85b745322365f77926386f0b65a23b512f9e6",
+      "targets": [
+        {
+          "path": "vendor/obsidian-wiki/bin/cmd2.sh",
+          "baseline_sha256": "28465e58d14c35b6b1426c58ab94b2e4dd0eb6b32271f466490ee26db10c8d47",
+          "patched_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
         }
       ]
     }

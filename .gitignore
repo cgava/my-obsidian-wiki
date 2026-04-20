@@ -10,3 +10,6 @@
 # patch_system bytecode
 __pycache__/
 *.pyc
+
+# patch-system runtime lock
+patches/.lock

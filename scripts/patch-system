@@ -1,20 +1,79 @@
 #!/usr/bin/env bash
 # patch-system — bash dispatcher for the Python patch_system package.
 #
-# Thin CLI shim: exports PATCH_SYSTEM_ROOT (project root containing patches/)
-# and delegates argv to `python3 -m patch_system`. No business logic here.
+# Thin CLI shim : exports PATCH_SYSTEM_ROOT and delegates argv to
+# `python3 -m patch_system`. Mutating subcommands (apply / rollback /
+# refresh / record) acquire a flock on `patches/.lock` per design §5.7.
+# Read-only subcommands (list, status, describe, diff, verify --read-only)
+# do NOT take the lock — they are safe to run concurrently with a mutating
+# operation.
 #
-# See docs/260420-patch-system-design.md §2.2 (CLI dispatcher responsibilities).
+# See docs/260420-patch-system-design.md §2.2 + §5.7.
 
 set -euo pipefail
 
-# Resolve project root from this script's location (scripts/patch-system).
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 export PATCH_SYSTEM_ROOT="${PATCH_SYSTEM_ROOT:-${PROJECT_ROOT}}"
 
-# Make the scripts/ dir importable so `python3 -m patch_system` resolves.
+# Make scripts/ dir importable so `python3 -m patch_system` resolves.
 export PYTHONPATH="${SCRIPT_DIR}${PYTHONPATH:+:${PYTHONPATH}}"
+
+# Determine whether the first non-flag argument is a mutating subcommand.
+# The top-level parser accepts `--series` / `--vendor-root` before the
+# subcommand, so we skip those (with their values) to find the verb.
+_is_mutating_cmd() {
+    local cmd=""
+    local i=0
+    while [[ $i -lt $# ]]; do
+        local arg="${@:$((i+1)):1}"
+        case "$arg" in
+            --series|--vendor-root)
+                i=$((i+2))
+                continue
+                ;;
+            --series=*|--vendor-root=*)
+                i=$((i+1))
+                continue
+                ;;
+            -h|--help)
+                return 1
+                ;;
+            -*)
+                i=$((i+1))
+                continue
+                ;;
+            *)
+                cmd="$arg"
+                break
+                ;;
+        esac
+    done
+
+    case "$cmd" in
+        apply|rollback|refresh|record)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+PATCHES_DIR="${PATCH_SYSTEM_ROOT}/patches"
+LOCK_FILE="${PATCHES_DIR}/.lock"
+
+if _is_mutating_cmd "$@"; then
+    # Create the patches/ dir + lock file if missing so flock has a target.
+    mkdir -p "${PATCHES_DIR}"
+    : > "${LOCK_FILE}"
+    # fd 9 scoped to this script; -n = non-blocking, fail fast on contention.
+    exec 9>"${LOCK_FILE}"
+    if ! flock -n 9; then
+        echo "patch-system: another mutating operation is in progress (lock: ${LOCK_FILE})" >&2
+        exit 1
+    fi
+fi
 
 exec python3 -m patch_system "$@"

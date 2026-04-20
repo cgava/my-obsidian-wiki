@@ -1,23 +1,26 @@
-Description: cmd2 — rewording (no longer applies — vendor drifted)
- The baseline sha recorded here is a pre-drift revision of cmd2.sh
- that no longer matches the vendor working tree. Detection by
- sha256-only will therefore return "dirty" for this patch.
+Description: cmd2 — reword echo line (baseline drifted cosmetically upstream)
+ The baseline this patch was crafted against no longer matches the vendor
+ working tree byte-for-byte — an upstream edit added a blank line at the
+ top of cmd2.sh. The patch's hunk context still matches with offset, so
+ `git apply --check` succeeds despite sha256 divergence → this is the
+ canonical "cosmetic drift, patched is applyable" fixture used by
+ detect.evaluate() tests.
 Origin: vendor
 Author: test-fixture <test@example.invalid>
 Forwarded: no
-Last-Update: 2026-04-10
+Last-Update: 2026-04-20
 X-Audit-Ref: tests/fixtures/README.md#0003
 X-Severity: TROMPEUR
-X-Baseline-Sha256: 0000000000000000000000000000000000000000000000000000000000000000
-X-Patched-Sha256: 1111111111111111111111111111111111111111111111111111111111111111
+X-Baseline-Sha256: 28465e58d14c35b6b1426c58ab94b2e4dd0eb6b32271f466490ee26db10c8d47
+X-Patched-Sha256: 5d705de5250ada8c23b2785e03274409188a67528e1534f922ae177563f03616
 ---
 --- a/bin/cmd2.sh
 +++ b/bin/cmd2.sh
-@@ -1,5 +1,5 @@
- #!/usr/bin/env bash
--# cmd2 — sample command (pre-drift baseline).
-+# cmd2 — sample command (patched).
+@@ -3,6 +3,6 @@
  set -euo pipefail
+
+ echo "cmd2 line one"
 -echo "cmd2 original output"
 +echo "cmd2 patched output"
- exit 0
+ echo "cmd2 line three"
+

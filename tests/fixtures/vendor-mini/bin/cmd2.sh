@@ -1,5 +1,9 @@
+
 #!/usr/bin/env bash
-# cmd2 — sample command (pristine, already drifted upstream for test).
 set -euo pipefail
-echo "cmd2 upstream revised output"
+
+echo "cmd2 line one"
+echo "cmd2 original output"
+echo "cmd2 line three"
+
 exit 0
