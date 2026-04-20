@@ -15,7 +15,7 @@ patches/
   0001-wiki-ingest-raw-fallback.patch        # diff unifie + header DEP-3
   0002-wiki-ingest-security-check.patch
   0003-vendor-env-remove.patch
-  0004-vendor-env-subsumed.patch
+  0004-vendor-env-raw-dir.patch              # status=obsolete (subsumé par B3)
   0005-read-dotenv-wording.patch             # p2 — 12 targets (voir §5.1)
   0006-raw-in-vault-wording.patch            # p2 — 6 targets (voir §5.1)
   ...

@@ -1,0 +1,200 @@
+Description: p2-read-dotenv — point skills at ~/.obsidian-wiki/config
+ Audit p2 (docs/260418-dual-sensitivity-analysis.md §5.3) flags 12
+ locations across the vendor tree that tell skills to "Read `.env` to
+ get `OBSIDIAN_VAULT_PATH`". This is misleading : the actual CLAUDE.md
+ contract (and the `wiki-update` / `wiki-query` cross-project skills)
+ already reads `~/.obsidian-wiki/config` FIRST, and only falls back to
+ `.env` inside the repo as a secondary source.
+ .
+ Severity : TROMPEUR (misleading but not blocking — skills still work,
+ but their documented startup sequence lies about the precedence).
+ .
+ This patch rewrites every occurrence to the truthful wording :
+ "Read `~/.obsidian-wiki/config` (preferred) or `.env` (fallback) ..."
+ while preserving the specific variable lists that follow (each file
+ lists slightly different vars — CLAUDE_HISTORY_PATH, CODEX_HISTORY_PATH,
+ OBSIDIAN_SOURCES_DIR, etc.).
+ .
+ Targets (12) :
+   - .skills/wiki-status/SKILL.md
+   - .skills/wiki-lint/SKILL.md
+   - .skills/cross-linker/SKILL.md
+   - .skills/tag-taxonomy/SKILL.md
+   - .skills/wiki-rebuild/SKILL.md
+   - .skills/wiki-export/SKILL.md
+   - .skills/data-ingest/SKILL.md
+   - .skills/claude-history-ingest/SKILL.md
+   - .skills/codex-history-ingest/SKILL.md
+   - .cursor/rules/obsidian-wiki.mdc
+   - .windsurf/rules/obsidian-wiki.md
+   - .github/copilot-instructions.md
+ .
+ Design §5.1 granularity : one thematic change → one patch, even when
+ multi-file. Applying this as 12 separate patches would create noise
+ with no gain.
+Origin: local
+Bug-Ref: docs/260418-dual-sensitivity-analysis.md §5.3
+Forwarded: no
+Last-Update: 2026-04-20
+X-Patch-Id: p2-read-dotenv-wording
+X-Audit-Ref: docs/260418-dual-sensitivity-analysis.md#p2-read-dotenv
+X-Severity: TROMPEUR
+X-Rationale: Align skill docs with the real config-lookup precedence
+ already used by wiki-update / wiki-query (config first, .env fallback).
+---
+diff --git a/.cursor/rules/obsidian-wiki.mdc b/.cursor/rules/obsidian-wiki.mdc
+index fe0e5ad..e181fa7 100644
+--- a/.cursor/rules/obsidian-wiki.mdc
++++ b/.cursor/rules/obsidian-wiki.mdc
+@@ -10,7 +10,7 @@ This project is a **skill-based framework** for building and maintaining an Obsi
+ 
+ ## Quick Orientation
+ 
+-1. Read `.env` for `OBSIDIAN_VAULT_PATH` — this is where the wiki lives.
++1. Read `~/.obsidian-wiki/config` (preferred) or `.env` (fallback) for `OBSIDIAN_VAULT_PATH` — this is where the wiki lives.
+ 2. Read `.manifest.json` at the vault root to see what's already been ingested.
+ 3. Skills are in `.skills/` (also at `.cursor/skills/`). Each subfolder has a `SKILL.md`.
+ 
+diff --git a/.github/copilot-instructions.md b/.github/copilot-instructions.md
+index d29fba3..28e5c8c 100644
+--- a/.github/copilot-instructions.md
++++ b/.github/copilot-instructions.md
+@@ -6,7 +6,7 @@ This project is a **skill-based framework** for building and maintaining an Obsi
+ 
+ - **Purpose:** Build and maintain an Obsidian wiki using the LLM Wiki pattern (Andrej Karpathy).
+ - **Tech Stack:** Markdown only. No code, no dependencies. The AI agent IS the runtime.
+-- **Key Config:** `.env` contains `OBSIDIAN_VAULT_PATH` pointing to the vault location.
++- **Key Config:** `~/.obsidian-wiki/config` (preferred) or `.env` (fallback) contains `OBSIDIAN_VAULT_PATH` pointing to the vault location.
+ - **Skills:** `.skills/` contains skill folders, each with a `SKILL.md` defining a workflow.
+ 
+ ## Key Concepts
+diff --git a/.skills/claude-history-ingest/SKILL.md b/.skills/claude-history-ingest/SKILL.md
+index a3463f4..677d37d 100644
+--- a/.skills/claude-history-ingest/SKILL.md
++++ b/.skills/claude-history-ingest/SKILL.md
+@@ -16,7 +16,7 @@ This skill can be invoked directly or via the `wiki-history-ingest` router (`/wi
+ 
+ ## Before You Start
+ 
+-1. Read `.env` to get `OBSIDIAN_VAULT_PATH` and `CLAUDE_HISTORY_PATH` (defaults to `~/.claude`)
++1. Read `~/.obsidian-wiki/config` (preferred) or `.env` (fallback) to get `OBSIDIAN_VAULT_PATH` and `CLAUDE_HISTORY_PATH` (defaults to `~/.claude`)
+ 2. Read `.manifest.json` at the vault root to check what's already been ingested
+ 3. Read `index.md` at the vault root to know what the wiki already contains
+ 
+diff --git a/.skills/codex-history-ingest/SKILL.md b/.skills/codex-history-ingest/SKILL.md
+index d153e3d..8b1e3d0 100644
+--- a/.skills/codex-history-ingest/SKILL.md
++++ b/.skills/codex-history-ingest/SKILL.md
+@@ -16,7 +16,7 @@ This skill can be invoked directly or via the `wiki-history-ingest` router (`/wi
+ 
+ ## Before You Start
+ 
+-1. Read `.env` to get `OBSIDIAN_VAULT_PATH` and `CODEX_HISTORY_PATH` (default to `~/.codex` if unset)
++1. Read `~/.obsidian-wiki/config` (preferred) or `.env` (fallback) to get `OBSIDIAN_VAULT_PATH` and `CODEX_HISTORY_PATH` (default to `~/.codex` if unset)
+ 2. Read `.manifest.json` at the vault root to check what has already been ingested
+ 3. Read `index.md` at the vault root to understand what the wiki already contains
+ 
+diff --git a/.skills/cross-linker/SKILL.md b/.skills/cross-linker/SKILL.md
+index a11910d..9e13bbb 100644
+--- a/.skills/cross-linker/SKILL.md
++++ b/.skills/cross-linker/SKILL.md
+@@ -18,7 +18,7 @@ You are weaving the wiki's knowledge graph tighter by finding and inserting miss
+ 
+ ## Before You Start
+ 
+-1. Read `.env` to get `OBSIDIAN_VAULT_PATH`
++1. Read `~/.obsidian-wiki/config` (preferred) or `.env` (fallback) to get `OBSIDIAN_VAULT_PATH`
+ 2. Read `index.md` to get the full inventory of pages and their one-line descriptions
+ 3. Skim `log.md` to see what was recently ingested (focus linking effort on new pages)
+ 
+diff --git a/.skills/data-ingest/SKILL.md b/.skills/data-ingest/SKILL.md
+index 06caa2a..b282020 100644
+--- a/.skills/data-ingest/SKILL.md
++++ b/.skills/data-ingest/SKILL.md
+@@ -15,7 +15,7 @@ You are ingesting arbitrary text data into an Obsidian wiki. The source could be
+ 
+ ## Before You Start
+ 
+-1. Read `.env` to get `OBSIDIAN_VAULT_PATH`
++1. Read `~/.obsidian-wiki/config` (preferred) or `.env` (fallback) to get `OBSIDIAN_VAULT_PATH`
+ 2. Read `.manifest.json` at the vault root — check if this source has been ingested before
+ 3. Read `index.md` at the vault root to know what already exists
+ 
+diff --git a/.skills/tag-taxonomy/SKILL.md b/.skills/tag-taxonomy/SKILL.md
+index 7565b8d..384174c 100644
+--- a/.skills/tag-taxonomy/SKILL.md
++++ b/.skills/tag-taxonomy/SKILL.md
+@@ -15,7 +15,7 @@ You are enforcing consistent tagging across the wiki by normalizing tags to a co
+ 
+ ## Before You Start
+ 
+-1. Read `.env` to get `OBSIDIAN_VAULT_PATH`
++1. Read `~/.obsidian-wiki/config` (preferred) or `.env` (fallback) to get `OBSIDIAN_VAULT_PATH`
+ 2. Read `$OBSIDIAN_VAULT_PATH/_meta/taxonomy.md` — this is the canonical tag list
+ 3. Read `index.md` to understand the wiki's scope
+ 
+diff --git a/.skills/wiki-export/SKILL.md b/.skills/wiki-export/SKILL.md
+index e330314..3f831b7 100644
+--- a/.skills/wiki-export/SKILL.md
++++ b/.skills/wiki-export/SKILL.md
+@@ -14,7 +14,7 @@ You are exporting the wiki's wikilink graph to structured formats so it can be u
+ 
+ ## Before You Start
+ 
+-1. Read `.env` to get `OBSIDIAN_VAULT_PATH`
++1. Read `~/.obsidian-wiki/config` (preferred) or `.env` (fallback) to get `OBSIDIAN_VAULT_PATH`
+ 2. Confirm the vault has pages to export — if fewer than 5 pages exist, warn the user and stop
+ 
+ ## Step 1: Build the Node and Edge Lists
+diff --git a/.skills/wiki-lint/SKILL.md b/.skills/wiki-lint/SKILL.md
+index 769fe28..ab0a9d8 100644
+--- a/.skills/wiki-lint/SKILL.md
++++ b/.skills/wiki-lint/SKILL.md
+@@ -15,7 +15,7 @@ You are performing a health check on an Obsidian wiki. Your goal is to find and
+ 
+ ## Before You Start
+ 
+-1. Read `.env` to get `OBSIDIAN_VAULT_PATH`
++1. Read `~/.obsidian-wiki/config` (preferred) or `.env` (fallback) to get `OBSIDIAN_VAULT_PATH`
+ 2. Read `index.md` for the full page inventory
+ 3. Read `log.md` for recent activity context
+ 
+diff --git a/.skills/wiki-rebuild/SKILL.md b/.skills/wiki-rebuild/SKILL.md
+index fa1f241..968944a 100644
+--- a/.skills/wiki-rebuild/SKILL.md
++++ b/.skills/wiki-rebuild/SKILL.md
+@@ -14,7 +14,7 @@ You are performing a destructive operation on the wiki. Always archive first, al
+ 
+ ## Before You Start
+ 
+-1. Read `.env` to get `OBSIDIAN_VAULT_PATH`
++1. Read `~/.obsidian-wiki/config` (preferred) or `.env` (fallback) to get `OBSIDIAN_VAULT_PATH`
+ 2. Read `.manifest.json` to understand current state
+ 3. **Confirm the user's intent.** This skill supports three modes:
+    - **Archive only** — snapshot current wiki, no rebuild
+diff --git a/.skills/wiki-status/SKILL.md b/.skills/wiki-status/SKILL.md
+index e0df08f..20cd1c0 100644
+--- a/.skills/wiki-status/SKILL.md
++++ b/.skills/wiki-status/SKILL.md
+@@ -16,7 +16,7 @@ You are computing the current state of the wiki: what's been ingested, what's ne
+ 
+ ## Before You Start
+ 
+-1. Read `.env` to get `OBSIDIAN_VAULT_PATH`, `OBSIDIAN_SOURCES_DIR`, `CLAUDE_HISTORY_PATH`, `CODEX_HISTORY_PATH`
++1. Read `~/.obsidian-wiki/config` (preferred) or `.env` (fallback) to get `OBSIDIAN_VAULT_PATH`, `OBSIDIAN_SOURCES_DIR`, `CLAUDE_HISTORY_PATH`, `CODEX_HISTORY_PATH`
+ 2. Read `.manifest.json` at the vault root — this is the ingest tracking ledger
+ 
+ ## The Manifest
+diff --git a/.windsurf/rules/obsidian-wiki.md b/.windsurf/rules/obsidian-wiki.md
+index 84d6ec4..aefc62f 100644
+--- a/.windsurf/rules/obsidian-wiki.md
++++ b/.windsurf/rules/obsidian-wiki.md
+@@ -9,7 +9,7 @@ This project is a **skill-based framework** for building and maintaining an Obsi
+ 
+ ## Quick Orientation
+ 
+-1. Read `.env` for `OBSIDIAN_VAULT_PATH` — this is where the wiki lives.
++1. Read `~/.obsidian-wiki/config` (preferred) or `.env` (fallback) for `OBSIDIAN_VAULT_PATH` — this is where the wiki lives.
+ 2. Read `.manifest.json` at the vault root to see what's already been ingested.
+ 3. Skills are in `.skills/` (also at `.windsurf/skills/`). Each subfolder has a `SKILL.md`.
+ 

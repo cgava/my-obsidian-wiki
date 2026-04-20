@@ -1,0 +1,38 @@
+Description: vendor/.env — OBSIDIAN_RAW_DIR relative path (subsumed by B3)
+ Audit B4 (docs/260418-dual-sensitivity-analysis.md §5.2) flags
+ `vendor/obsidian-wiki/.env` line 53 as defining `OBSIDIAN_RAW_DIR=_raw`
+ with a relative path. In dual-zone mode this is interpreted as
+ `$OBSIDIAN_VAULT_PATH/_raw`, which breaks when `_raw/` lives outside
+ the vault.
+ .
+ Status : obsolete / subsumed.
+ .
+ The pilot patch B3 (`b3-vendor-env-remove`, order 3) blanks
+ `OBSIDIAN_VAULT_PATH=` in the same file. Once the vault path is empty,
+ the "relative OBSIDIAN_RAW_DIR resolves inside the vault" regression
+ disappears transitively — there is no vault root to prepend.
+ .
+ Deliberate choice : this record is kept in series.json with
+ `status: "obsolete"` to preserve the audit trail (so future maintainers
+ see that B4 was known and consciously subsumed rather than forgotten),
+ but carries NO executable diff body. Attempting `apply` or `rollback`
+ against this record is a no-op / error by design. See patches/README.md
+ §"How to retire a patch".
+ .
+ If B3 is ever reverted or narrowed, this record must be promoted back
+ to `status: "active"` and its diff body regenerated to set an absolute
+ `OBSIDIAN_RAW_DIR=` (or simply remove the line entirely).
+Origin: local
+Bug-Ref: docs/260418-dual-sensitivity-analysis.md §5.2 B4
+Forwarded: no
+Last-Update: 2026-04-20
+X-Patch-Id: b4-vendor-env-raw-dir
+X-Audit-Ref: docs/260418-dual-sensitivity-analysis.md#b4
+X-Severity: BLOCKING
+X-Status: obsolete
+X-Subsumed-By: b3-vendor-env-remove
+X-Rationale: Audit B4 is resolved transitively by B3 (blank
+ OBSIDIAN_VAULT_PATH). This record is a header-only placeholder
+ documenting the subsumption ; it has no hunks and is not meant to be
+ applied.
+---

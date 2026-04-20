@@ -1,0 +1,92 @@
+Description: p2-raw-in-vault — document _raw as configurable, not in-vault
+ Audit p2 (docs/260418-dual-sensitivity-analysis.md §5.4) flags several
+ locations that state `_raw/` lives "inside your vault" — misleading in
+ dual-zone deployments where the staging directory is set via
+ `OBSIDIAN_RAW_DIR` to a path outside `$OBSIDIAN_VAULT_PATH`.
+ .
+ Severity : TROMPEUR. Skills still work (they resolve the path via the
+ env var anyway) but the documentation lies about the layout contract.
+ .
+ Targets in this patch (4) :
+   - AGENTS.md line 24 (vault-structure tree)
+   - .env.example line 49 (comment block for OBSIDIAN_RAW_DIR)
+   - README.md line 220 (`_raw/` Staging Directory section)
+   - .skills/wiki-setup/SKILL.md line 45 (staging area description)
+ .
+ Deliberately excluded :
+   - `.skills/wiki-ingest/SKILL.md` (lines 58-62) — already rewritten
+     by B1 (`b1-wiki-ingest-raw-fallback`, order 1). Strategy (b) from
+     jalon-15 spec : avoid hunk overlap by letting B1 own that file ;
+     the new wording from B1 ("`OBSIDIAN_RAW_DIR` (required, must be
+     absolute)") already conveys the same "not-in-vault" message.
+   - `.env` — gitignored ; the offending wording there is subsumed by
+     B3 (blanks OBSIDIAN_VAULT_PATH) and by B4 (obsolete record).
+     Touching `.env` here would require another runtime.json override
+     and add no semantic gain.
+ .
+ Wording : "(configured via OBSIDIAN_RAW_DIR; may live outside the
+ vault in dual-zone setups)" — short enough to stay on one line in the
+ tree diagrams, explicit enough to correct the mental model.
+Origin: local
+Bug-Ref: docs/260418-dual-sensitivity-analysis.md §5.4
+Forwarded: no
+Last-Update: 2026-04-20
+X-Patch-Id: p2-raw-in-vault-wording
+X-Audit-Ref: docs/260418-dual-sensitivity-analysis.md#p2-raw-in-vault
+X-Severity: TROMPEUR
+X-Rationale: Align documentation with the dual-zone reality : _raw is
+ configured via OBSIDIAN_RAW_DIR and may live outside the vault. Avoids
+ overlap with B1/B2 by excluding wiki-ingest/SKILL.md from targets.
+---
+diff --git a/.env.example b/.env.example
+index 9514590..e147d95 100644
+--- a/.env.example
++++ b/.env.example
+@@ -46,7 +46,7 @@ QMD_PAPERS_COLLECTION=
+ 
+ # --- Raw Staging Directory (optional) ---
+ #
+-# A directory inside OBSIDIAN_VAULT_PATH for unprocessed draft pages.
++# A directory for unprocessed draft pages (may live outside OBSIDIAN_VAULT_PATH in dual-zone setups).
+ # Drop rough notes, clipboard pastes, or quick captures here.
+ # wiki-ingest will promote them to proper wiki pages when you run it.
+ # Promoted files are deleted from _raw/ after processing.
+diff --git a/.skills/wiki-setup/SKILL.md b/.skills/wiki-setup/SKILL.md
+index 48fece7..098811a 100644
+--- a/.skills/wiki-setup/SKILL.md
++++ b/.skills/wiki-setup/SKILL.md
+@@ -42,7 +42,7 @@ mkdir -p "$OBSIDIAN_VAULT_PATH"/{concepts,entities,skills,references,synthesis,j
+ - `.obsidian/` — Obsidian's own config. Creates vault recognition.
+ - `projects/` — Per-project knowledge (populated during ingest).
+ - `_archives/` — Stores wiki snapshots for rebuild/restore operations.
+-- `_raw/` — Staging area for unprocessed drafts. Drop rough notes here; `wiki-ingest` will promote them to proper wiki pages and delete the originals.
++- `_raw/` — Staging area for unprocessed drafts (configured via `OBSIDIAN_RAW_DIR`; may live outside the vault in dual-zone setups). Drop rough notes here; `wiki-ingest` will promote them to proper wiki pages and delete the originals.
+ 
+ ## Step 3: Create Special Files
+ 
+diff --git a/AGENTS.md b/AGENTS.md
+index 075a951..c2021e1 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -21,7 +21,7 @@ $OBSIDIAN_VAULT_PATH/
+ ├── _meta/
+ │   └── taxonomy.md         # Controlled tag vocabulary
+ ├── _insights.md            # Graph analysis output (hubs, bridges, dead ends)
+-├── _raw/                   # Staging area — drop rough notes here, next ingest promotes them
++├── _raw/                   # Staging area (configured via OBSIDIAN_RAW_DIR; may live outside the vault in dual-zone setups)
+ ├── concepts/               # Abstract ideas, patterns, mental models
+ ├── entities/               # Concrete things — people, tools, libraries, companies
+ ├── skills/                 # How-to knowledge, techniques, procedures
+diff --git a/README.md b/README.md
+index 0a7d8c7..3e16be9 100644
+--- a/README.md
++++ b/README.md
+@@ -217,7 +217,7 @@ Both skills degrade gracefully: if `QMD_WIKI_COLLECTION` / `QMD_PAPERS_COLLECTIO
+ 
+ ### `_raw/` Staging Directory
+ 
+-`_raw/` is a staging area inside your vault for unprocessed captures — rough notes, clipboard pastes, quick voice-memo transcripts. Drop files there and the next `wiki-ingest` run will promote them to proper wiki pages and remove the originals.
++`_raw/` is a staging area configured via `OBSIDIAN_RAW_DIR` (may live outside the vault in dual-zone setups) for unprocessed captures — rough notes, clipboard pastes, quick voice-memo transcripts. Drop files there and the next `wiki-ingest` run will promote them to proper wiki pages and remove the originals.
+ 
+ The directory is created automatically by `wiki-setup`. The path is configurable via `OBSIDIAN_RAW_DIR` in `.env` (defaults to `_raw`).
+ 

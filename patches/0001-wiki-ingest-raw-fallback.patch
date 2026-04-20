@@ -1,0 +1,42 @@
+Description: wiki-ingest — remove OBSIDIAN_VAULT_PATH/_raw fallback
+ Audit B1 (docs/260418-dual-sensitivity-analysis.md §5.2) flags
+ `.skills/wiki-ingest/SKILL.md` line 62 as asserting that the raw
+ staging area lives inside the vault (`OBSIDIAN_VAULT_PATH/_raw/`) with
+ `OBSIDIAN_RAW_DIR` only as a fallback. In dual-zone mode `_raw/` is
+ deliberately outside the vault — any skill falling back to
+ `$VAULT_PATH/_raw/` resolves to a non-existent directory.
+ .
+ This patch rewrites the sentence so `OBSIDIAN_RAW_DIR` becomes the
+ canonical (required, absolute) source of truth. Callers that previously
+ relied on the implicit fallback must now configure `OBSIDIAN_RAW_DIR`
+ explicitly, which is the correct behaviour for dual-zone deployments.
+ .
+ Composition with B2 : B2 touches line 64 of the same file (deletion
+ safety). B1 and B2 are designed to compose sequentially (B1 first,
+ then B2) with no hunk overlap.
+Origin: local
+Bug-Ref: docs/260418-dual-sensitivity-analysis.md §5.2 B1
+Forwarded: no
+Last-Update: 2026-04-20
+X-Patch-Id: b1-wiki-ingest-raw-fallback
+X-Audit-Ref: docs/260418-dual-sensitivity-analysis.md#b1
+X-Severity: BLOCKING
+X-Baseline-Sha256: 76e48942702a22a58b15df4fa2bf1871d8442157ddcfa9258f7aa66fecac283d
+X-Patched-Sha256: 8f474560c9e5dc03852c503f81a2ff6962eaab64e4b39d400829dd27ca5f2a70
+X-Rationale: Make OBSIDIAN_RAW_DIR the single source of truth for the
+ raw staging directory ; remove the in-vault fallback that breaks dual-
+ zone deployments.
+---
+diff --git a/.skills/wiki-ingest/SKILL.md b/.skills/wiki-ingest/SKILL.md
+index 6bfd088..dc6e517 100644
+--- a/.skills/wiki-ingest/SKILL.md
++++ b/.skills/wiki-ingest/SKILL.md
+@@ -59,7 +59,7 @@ Process draft pages from the `_raw/` staging directory inside the vault. Use whe
+ - The user says "process my drafts", "promote my raw pages", or drops files into `_raw/`
+ - After a paste-heavy session where notes were captured quickly without structure
+ 
+-In raw mode, each file in `OBSIDIAN_VAULT_PATH/_raw/` (or `OBSIDIAN_RAW_DIR`) is treated as a source. After promoting a file to a proper wiki page, **delete the original from `_raw/`**. Never leave promoted files in `_raw/` — they'll be double-processed on the next run.
++In raw mode, each file in `OBSIDIAN_RAW_DIR` (required, must be absolute) is treated as a source. After promoting a file to a proper wiki page, **delete the original from `_raw/`**. Never leave promoted files in `_raw/` — they'll be double-processed on the next run.
+ 
+ **Deletion safety:** Only delete the specific file that was just promoted. Before deleting, verify the resolved path is inside `$OBSIDIAN_VAULT_PATH/_raw/` — never delete files outside this directory. Never use wildcards or recursive deletion (`rm -rf`, `rm *`). Delete one file at a time by its exact path.
+ 

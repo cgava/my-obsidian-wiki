@@ -3,6 +3,44 @@
   "vendor_baseline_sha": "9c1b51769dee6a1bd2717e3c77cfe21e0e35ad9c",
   "records": [
     {
+      "id": "b1-wiki-ingest-raw-fallback",
+      "order": 1,
+      "status": "active",
+      "severity": "BLOCKING",
+      "title": "wiki-ingest — remove OBSIDIAN_VAULT_PATH/_raw fallback",
+      "audit_ref": "docs/260418-dual-sensitivity-analysis.md#b1",
+      "patch_file": "0001-wiki-ingest-raw-fallback.patch",
+      "patch_sha256": "c465568aaa55ec916cce53cbbb4ab06dfadbb1c4bf48d58d753932b769b6a39f",
+      "targets": [
+        {
+          "path": "vendor/obsidian-wiki/.skills/wiki-ingest/SKILL.md",
+          "baseline_sha256": "76e48942702a22a58b15df4fa2bf1871d8442157ddcfa9258f7aa66fecac283d",
+          "patched_sha256": "8f474560c9e5dc03852c503f81a2ff6962eaab64e4b39d400829dd27ca5f2a70"
+        }
+      ],
+      "last_applied": "2026-04-20T20:03:31Z",
+      "last_result": "patched"
+    },
+    {
+      "id": "b2-wiki-ingest-security-check",
+      "order": 2,
+      "status": "active",
+      "severity": "BLOCKING",
+      "title": "wiki-ingest — align deletion safety check with OBSIDIAN_RAW_DIR",
+      "audit_ref": "docs/260418-dual-sensitivity-analysis.md#b2",
+      "patch_file": "0002-wiki-ingest-security-check.patch",
+      "patch_sha256": "14d4949aacd06cd0fde8f59ae8be1f187d8e86d7b4dd8ecefb2bfca2335ac6f1",
+      "targets": [
+        {
+          "path": "vendor/obsidian-wiki/.skills/wiki-ingest/SKILL.md",
+          "baseline_sha256": "8f474560c9e5dc03852c503f81a2ff6962eaab64e4b39d400829dd27ca5f2a70",
+          "patched_sha256": "6c8686779f9e92c3379372fb8ed50c8a7ce2226df0be30fdfe742c4dbb69b608"
+        }
+      ],
+      "last_applied": "2026-04-20T20:03:31Z",
+      "last_result": "patched"
+    },
+    {
       "id": "b3-vendor-env-remove",
       "order": 3,
       "status": "active",
@@ -17,7 +55,135 @@
           "baseline_sha256": "0a1678c1e7b71e6b311a2c1ceebef1f5d26942465c597f13e9f8b51c821acff3",
           "patched_sha256": "6cdab2e007ca120b5fcf914e6d690cf8c406b35603d6ce63fc8f176cb61614b5"
         }
-      ]
+      ],
+      "last_applied": "2026-04-20T20:03:31Z",
+      "last_result": "patched"
+    },
+    {
+      "id": "b4-vendor-env-raw-dir",
+      "order": 4,
+      "status": "obsolete",
+      "severity": "BLOCKING",
+      "title": "vendor/.env — OBSIDIAN_RAW_DIR relative path (subsumed by B3)",
+      "audit_ref": "docs/260418-dual-sensitivity-analysis.md#b4",
+      "patch_file": "0004-vendor-env-raw-dir.patch",
+      "patch_sha256": "6ffe00d611356ec09ec07cd6afaa909d7128f2f07bf1e379a8978210f8a7abf2",
+      "targets": [
+        {
+          "path": "vendor/obsidian-wiki/.env",
+          "baseline_sha256": "0a1678c1e7b71e6b311a2c1ceebef1f5d26942465c597f13e9f8b51c821acff3",
+          "patched_sha256": "0a1678c1e7b71e6b311a2c1ceebef1f5d26942465c597f13e9f8b51c821acff3"
+        }
+      ],
+      "notes": "Subsumed by b3-vendor-env-remove. Header-only patch (no diff body) kept for audit trail. Target baseline==patched because no change is produced by this patch. Do not apply."
+    },
+    {
+      "id": "p2-read-dotenv-wording",
+      "order": 5,
+      "status": "active",
+      "severity": "TROMPEUR",
+      "title": "p2-read-dotenv — point skills at ~/.obsidian-wiki/config",
+      "audit_ref": "docs/260418-dual-sensitivity-analysis.md#p2-read-dotenv",
+      "patch_file": "0005-read-dotenv-wording.patch",
+      "patch_sha256": "9b38eb45eeb8a09b4d61979190905613abc3901595bd4fb860d16641c00d9e7b",
+      "targets": [
+        {
+          "path": "vendor/obsidian-wiki/.skills/wiki-status/SKILL.md",
+          "baseline_sha256": "95c49cb4176a6b2573a12d70870f246a5cdf0f0d10174c171e7c67ac4feebdc1",
+          "patched_sha256": "73aa763277efb1edb178e085bcab63d7b9008ae3508aa2c1359b19046caeef5d"
+        },
+        {
+          "path": "vendor/obsidian-wiki/.skills/wiki-lint/SKILL.md",
+          "baseline_sha256": "ad25149072ba881840739355a58bab46744956b9fd9a35b1b8ace8cbbf966e2d",
+          "patched_sha256": "bfcdec6a7c757584b0d80cb381b825413ca319c89b0ff2bd822f3efcf5967cc0"
+        },
+        {
+          "path": "vendor/obsidian-wiki/.skills/cross-linker/SKILL.md",
+          "baseline_sha256": "d64548655272921e27833c93e41663502bf2def41b830703d277959b580efb78",
+          "patched_sha256": "37b4384eb6bbf3fc620dd9a914229325b07d8242014c0439642c9f40ad19e9e4"
+        },
+        {
+          "path": "vendor/obsidian-wiki/.skills/tag-taxonomy/SKILL.md",
+          "baseline_sha256": "fa5c3b19c939e4d8b5484c40fdb1d8ff81414d9f89219f27520bf9e3da2281d1",
+          "patched_sha256": "99014a7b552e83ee00b86ecfccc18461ab6ad5ba3e4eec4676990e9367f42165"
+        },
+        {
+          "path": "vendor/obsidian-wiki/.skills/wiki-rebuild/SKILL.md",
+          "baseline_sha256": "8c22deda5fbb8429b23768f17a4007a096381c00aebe5ea02f9c38b56b70696c",
+          "patched_sha256": "526905366d813bcb0c14a3221884bae10aec8b5afb688fb4296888015a81b102"
+        },
+        {
+          "path": "vendor/obsidian-wiki/.skills/wiki-export/SKILL.md",
+          "baseline_sha256": "0d1a115129f818fd8bcae0e89616aaf4ac1fcd1a7bd8aeb7d7903f6d064fe5a0",
+          "patched_sha256": "a41388580595f8b71a4fa77ef3003b71901b126178f55c175ac831145b9298c2"
+        },
+        {
+          "path": "vendor/obsidian-wiki/.skills/data-ingest/SKILL.md",
+          "baseline_sha256": "95228378fb20dabd5fe6d2385375346f44b52d1e22a42d8a63a6757cd410b579",
+          "patched_sha256": "34a1c0b0a3c4006d307f1aa13f07ad557c62f0b2f374c159d76436530c3c9f1c"
+        },
+        {
+          "path": "vendor/obsidian-wiki/.skills/claude-history-ingest/SKILL.md",
+          "baseline_sha256": "394a08afa82253faebba153a8310f830d2135aaa717c81c6cbd29891bfdc2a85",
+          "patched_sha256": "d6d9deb7722db4c621256675d12e52efd88f5981cd63ff3ae73f8c77e301d846"
+        },
+        {
+          "path": "vendor/obsidian-wiki/.skills/codex-history-ingest/SKILL.md",
+          "baseline_sha256": "5596c59bf5834b7bb3117e9372d9a7663fa1e404e363c80c9980813038f8d7fe",
+          "patched_sha256": "282bdac345022cd07c6d0220414bb2b72d832b068a20ef7acf4057b6ea84dc1e"
+        },
+        {
+          "path": "vendor/obsidian-wiki/.cursor/rules/obsidian-wiki.mdc",
+          "baseline_sha256": "c43c077b97b0b59a08f361d5b544a7131738b0bacc68ce2b1b46d2535d9a98d0",
+          "patched_sha256": "6b6a34055b14e98cf91dd404708672a1518945136539260769542bb5de003f0b"
+        },
+        {
+          "path": "vendor/obsidian-wiki/.windsurf/rules/obsidian-wiki.md",
+          "baseline_sha256": "102b3f6b50a4f0522b0f6728f9c4dfbb38741c0f6ed64a47518a9d07f705460f",
+          "patched_sha256": "858bf79ccfffb1ba43fffb31a12e2275937e4152d6211b7cf883d4ab75457986"
+        },
+        {
+          "path": "vendor/obsidian-wiki/.github/copilot-instructions.md",
+          "baseline_sha256": "fcb52b589add100a375082e4127551ab1ddcdb23dcc137869d67becfd2787b7b",
+          "patched_sha256": "18efbdfbed016a70dcf91ed76589c335e88735e70c22ea644c67157eb7d8d595"
+        }
+      ],
+      "last_applied": "2026-04-20T20:03:31Z",
+      "last_result": "patched"
+    },
+    {
+      "id": "p2-raw-in-vault-wording",
+      "order": 6,
+      "status": "active",
+      "severity": "TROMPEUR",
+      "title": "p2-raw-in-vault — document _raw as configurable, not in-vault",
+      "audit_ref": "docs/260418-dual-sensitivity-analysis.md#p2-raw-in-vault",
+      "patch_file": "0006-raw-in-vault-wording.patch",
+      "patch_sha256": "b08b99f1c27be753a059bc0b34e68f256b6f7ad10341ca585537dd5b11c70129",
+      "targets": [
+        {
+          "path": "vendor/obsidian-wiki/AGENTS.md",
+          "baseline_sha256": "326d15da63619aa24c15b085ac9459da58dc75ef892409a9a83960cdeb2f1461",
+          "patched_sha256": "53f06d5d7ab4b80e14530b3b4646aa183d6fba531c6ebb0395edde4d9bbc14c4"
+        },
+        {
+          "path": "vendor/obsidian-wiki/.env.example",
+          "baseline_sha256": "6cdab2e007ca120b5fcf914e6d690cf8c406b35603d6ce63fc8f176cb61614b5",
+          "patched_sha256": "2f2f593c89a0fb8ba9f461001919bd2a9fcbbcb89a2aaf524b400171d0d5bbe9"
+        },
+        {
+          "path": "vendor/obsidian-wiki/README.md",
+          "baseline_sha256": "061d93d2545e1203cec69bf5200a8d4279935ec976d0e96cc392fdf467e89b83",
+          "patched_sha256": "ba6517884ca2fca96cdb7952361391dec32304451f068e3212fb80e2eeff70bc"
+        },
+        {
+          "path": "vendor/obsidian-wiki/.skills/wiki-setup/SKILL.md",
+          "baseline_sha256": "3e55c5d3d06fd4d041396359679242258d52bc7e55085047bb054cee2de482bb",
+          "patched_sha256": "ab1f686d1155f6fe4276c80bdc5cea0a62e4cf4cd3e14e0948ac7d74d19b57a4"
+        }
+      ],
+      "last_applied": "2026-04-20T20:03:31Z",
+      "last_result": "patched"
     }
   ]
 }
