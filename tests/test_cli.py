@@ -220,13 +220,7 @@ class TestDiffCmd(CLITestBase):
         self.assertEqual(lines, ["bin/cmd2.sh"])
 
 
-class TestVerifyStub(CLITestBase):
-    def test_verify_nonempty_registry_returns_1(self):
-        # Non-empty fixture registry : stub returns exit 1 (note #5).
-        res = _run_cli(["verify"], self.root)
-        self.assertEqual(res.returncode, 1, res.stdout + res.stderr)
-        self.assertIn("not yet implemented", res.stderr)
-
+class TestVerifyEmpty(CLITestBase):
     def test_verify_empty_registry_returns_0(self):
         # Replace series.json with an empty registry.
         (self.root / "patches" / "series.json").write_text(
@@ -235,7 +229,21 @@ class TestVerifyStub(CLITestBase):
         )
         res = _run_cli(["verify"], self.root)
         self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
-        self.assertIn("empty", res.stderr)
+        self.assertIn("empty", res.stdout)
+
+
+class TestRefreshCmd(CLITestBase):
+    def test_refresh_unknown_id_exit_2(self):
+        res = _run_cli(["refresh", "nope", "--dry-run", "--yes"], self.root)
+        self.assertEqual(res.returncode, 2, res.stdout + res.stderr)
+
+    def test_refresh_dry_run_clean_noop(self):
+        res = _run_cli(
+            ["refresh", "t0001-readme-add-section", "--dry-run", "--yes"],
+            self.root,
+        )
+        # Clean state, registry already matches → no-op, exit 0.
+        self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
 
 
 class TestTopLevelSeriesFlag(CLITestBase):

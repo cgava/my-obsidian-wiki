@@ -21,6 +21,8 @@ from typing import Any
 
 from patch_system import apply as apply_mod
 from patch_system import detect, registry, rollback as rb_mod
+from patch_system import refresh as refresh_mod
+from patch_system import verify as verify_mod
 
 
 # -------------------------------------------------------------------------
@@ -439,26 +441,46 @@ def _cmd_rollback(args: argparse.Namespace) -> int:
 
 
 def _cmd_verify(args: argparse.Namespace) -> int:
-    """Verify stub — jalon 9 full impl.
+    """Integrity + drift + coherence checks (design §2.3, §4.1 line 309).
 
-    REV-0004 note #5 : empty registry -> exit 0 with a warning ; otherwise
-    exit 1 with "Phase 3 not yet implemented".
+    Exit codes per design §4.1 (verbatim): 0 ok, 1 failure, 3 invalid
+    registry.
     """
-    _, _, _, data = _load_ctx(args)
-    records = data.get("records", [])
-    if not records:
-        print("verify: (empty registry — nothing to verify)", file=sys.stderr)
-        return 0
-    print(
-        "verify: Phase 3 verify not yet implemented — jalons 9/10. "
-        f"({len(records)} record(s) would be checked.)",
-        file=sys.stderr,
+    _, vendor_root, patches_dir, data = _load_ctx(args)
+    return verify_mod.verify(
+        data, vendor_root, patches_dir,
+        json_output=getattr(args, "json", False),
+        strict=getattr(args, "strict", False),
+        stream=sys.stdout,
     )
-    return 1
+
+
+def _cmd_refresh(args: argparse.Namespace) -> int:
+    """Recompute baseline / patched sha256 from current vendor state.
+
+    Design §4.1 line 308 (verbatim) + §7 item 10 (verbatim).
+    """
+    series_path, vendor_root, patches_dir, data = _load_ctx(args)
+    rec = _record_by_id(data, args.rid)
+    if rec is None:
+        print(f"no record with id={args.rid!r}", file=sys.stderr)
+        return 2  # unknown id → argv-like invocation error
+
+    result = refresh_mod.refresh_record(
+        rec, vendor_root, patches_dir,
+        dry_run=args.dry_run, yes=args.yes,
+        registry_path=series_path if not args.dry_run else None,
+        all_records=data if not args.dry_run else None,
+        stream=sys.stdout,
+    )
+    if not result["success"]:
+        print(result["message"], file=sys.stderr)
+        return 1
+    return 0
 
 
 # -------------------------------------------------------------------------
-# Other stubs (`refresh`, `record`) — deferred to jalons 10-11.
+# Other stubs (`record`) — deferred to jalon 11/12.
 # -------------------------------------------------------------------------
 
 
@@ -550,13 +572,29 @@ def build_parser() -> argparse.ArgumentParser:
     p_rb.add_argument("--dry-run", action="store_true")
     p_rb.add_argument("--yes", action="store_true")
 
-    # verify (stub)
-    sub.add_parser("verify", help="(stub until jalon 9/10) Integrity checks.")
+    # verify
+    p_ver = sub.add_parser(
+        "verify",
+        help="Integrity + drift + target coherence (design §4.1).",
+    )
+    p_ver.add_argument("--json", action="store_true", help="JSON output.")
+    p_ver.add_argument(
+        "--strict",
+        action="store_true",
+        help="Upgrade drift warnings to failures (exit 1).",
+    )
 
-    # refresh / record stubs
-    p_ref = sub.add_parser("refresh", help="(not yet implemented — jalon 10)")
+    # refresh <id>
+    p_ref = sub.add_parser(
+        "refresh",
+        help="Recompute baseline/patched sha256 from current state.",
+    )
     p_ref.add_argument("rid", metavar="id")
-    p_rec = sub.add_parser("record", help="(not yet implemented — jalon 11)")
+    p_ref.add_argument("--dry-run", action="store_true")
+    p_ref.add_argument("--yes", action="store_true")
+
+    # record stub (jalon 11+ — scope of future work).
+    p_rec = sub.add_parser("record", help="(not yet implemented — jalon 12)")
     p_rec.add_argument("rid", metavar="id")
     p_rec.add_argument("--from", dest="from_path")
 
@@ -575,15 +613,14 @@ def main(argv: list[str] | None = None) -> int:
         "apply": _cmd_apply,
         "rollback": _cmd_rollback,
         "verify": _cmd_verify,
+        "refresh": _cmd_refresh,
     }
     handler = dispatch.get(args.cmd)
     if handler is not None:
         return handler(args)
 
-    if args.cmd == "refresh":
-        return _cmd_not_implemented("refresh", "jalon 10")
     if args.cmd == "record":
-        return _cmd_not_implemented("record", "jalon 11")
+        return _cmd_not_implemented("record", "jalon 12")
 
     parser.error(f"unknown command: {args.cmd}")
     return 2  # unreachable

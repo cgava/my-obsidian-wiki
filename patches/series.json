@@ -1,0 +1,23 @@
+{
+  "schema_version": "1",
+  "vendor_baseline_sha": "9c1b51769dee6a1bd2717e3c77cfe21e0e35ad9c",
+  "records": [
+    {
+      "id": "b3-vendor-env-remove",
+      "order": 3,
+      "status": "active",
+      "severity": "BLOCKING",
+      "title": "vendor/.env — remove hardcoded OBSIDIAN_VAULT_PATH",
+      "audit_ref": "docs/260418-dual-sensitivity-analysis.md#b3",
+      "patch_file": "0003-vendor-env-remove.patch",
+      "patch_sha256": "0f2326c8cf5696c27a35513460584903a91c5dd983aa29c1a6cabb8d60dbffe9",
+      "targets": [
+        {
+          "path": "vendor/obsidian-wiki/.env",
+          "baseline_sha256": "0a1678c1e7b71e6b311a2c1ceebef1f5d26942465c597f13e9f8b51c821acff3",
+          "patched_sha256": "6cdab2e007ca120b5fcf914e6d690cf8c406b35603d6ce63fc8f176cb61614b5"
+        }
+      ]
+    }
+  ]
+}

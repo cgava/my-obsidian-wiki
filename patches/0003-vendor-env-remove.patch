@@ -1,0 +1,46 @@
+Description: vendor/.env — remove hardcoded OBSIDIAN_VAULT_PATH
+ Audit B3 (docs/260418-dual-sensitivity-analysis.md §5.2) flags
+ `vendor/obsidian-wiki/.env` line 9 as pointing at the knlg-repo root
+ rather than a zone-scoped vault path. In dual-zone mode this mis-routes
+ any skill that falls back to reading vendor/.env when pre-loaded env
+ vars are absent.
+ .
+ Audit reco was option A (delete vendor/.env entirely). That was rejected
+ here in favour of option B (keep the file but blank the offending
+ value) because :
+ .
+   1. `.env` is gitignored by the vendor repo (`git ls-files` reports it
+      absent from HEAD and from the index). A pure delete patch can only
+      be expressed against an untracked working-tree file, which breaks
+      `git apply --index` used by the jalon-6 apply engine.
+   2. Blanking the value (`OBSIDIAN_VAULT_PATH=`) preserves the
+      fallback mechanism for skills that expect the file to exist, while
+      preventing mis-routing (an empty value causes a fail-fast in the
+      skill instead of silently hitting the wrong directory).
+   3. B4 is subsumed : once the value is blank, the "wrong directory"
+      regression disappears without a separate patch.
+ .
+ Deviation documented in patches/README.md §"B3 deviation".
+Origin: local
+Bug-Ref: docs/260418-dual-sensitivity-analysis.md §5.2 B3
+Forwarded: no
+Last-Update: 2026-04-20
+X-Patch-Id: b3-vendor-env-remove
+X-Audit-Ref: docs/260418-dual-sensitivity-analysis.md#b3
+X-Severity: BLOCKING
+X-Baseline-Sha256: 0a1678c1e7b71e6b311a2c1ceebef1f5d26942465c597f13e9f8b51c821acff3
+X-Patched-Sha256: 6cdab2e007ca120b5fcf914e6d690cf8c406b35603d6ce63fc8f176cb61614b5
+X-Rationale: Remove hardcoded vault path ; force empty → fail-fast in
+ skill fallback instead of silently mis-routing. Subsumes audit B4.
+---
+--- a/.env
++++ b/.env
+@@ -6,7 +6,7 @@
+ # --- Required ---
+
+ # Absolute path to your Obsidian vault
+-OBSIDIAN_VAULT_PATH=/home/omc/workspace/my-obsidian-wiki/knlg-repo
++OBSIDIAN_VAULT_PATH=
+
+ # --- Optional ---
+
