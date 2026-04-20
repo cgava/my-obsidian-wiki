@@ -537,6 +537,11 @@ canoniques. Champs ajoutes : `X-Audit-Ref`, `X-Severity`, `X-Baseline-Sha256`,
 - **DEP-3 strict + tout en JSON** : rejete — perd l'auto-suffisance du
   `.patch` pour forwardage upstream.
 
+**Note factuelle** : le RFC 6648 (2012) deprecie `X-*` pour les nouveaux
+protocoles IETF. DEP-3 etant un format interne Debian (non-IETF), la
+convention `X-*` y demeure acceptable et signale explicitement l'extension
+hors-spec.
+
 **Verification de coherence** : un check dedie dans `verify` : pour chaque
 record, parser le header du `.patch`, verifier que les `X-Baseline-Sha256`
 et `X-Patched-Sha256` matchent ceux de series.json. Divergence -> warning.
