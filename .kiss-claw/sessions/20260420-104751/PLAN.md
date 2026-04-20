@@ -65,10 +65,10 @@ Plan détaillé 16 jalons en design §7. Groupement par livraison :
 - [x] J7 rollback : git apply --reverse --index, garde-fou last_result==patched
 - [x] J8 CLI polish : describe, diff, status format §4.4, --json mode, filtres list/status
 
-#### Jalons 9-11 — Verify + refresh + pilote B3 réel — TODO
-- [ ] J9 verify complet : recalcul patch_sha256, drift vendor, cohérence targets + exit codes §4.1 (0/1/2/3)
-- [ ] J10 refresh : recalcul baseline/patched sha depuis l'état courant (après git pull vendor)
-- [ ] J11 premier patch réel B3 (`vendor/.env` OBSIDIAN_RAW_DIR) + entrée series.json + README utilisateur (documenter convention patches/series.json + patches/*.patch co-located signalé REV-0005)
+#### Jalons 9-11 — Verify + refresh + pilote B3 réel — DONE (commit 631cbd1, 86 tests)
+- [x] J9 verify complet : recalcul patch_sha256, drift vendor, cohérence targets + exit codes §4.1 (0/1/2/3)
+- [x] J10 refresh : recalcul baseline/patched sha depuis l'état courant (après git pull vendor)
+- [x] J11 premier patch réel B3 (`vendor/.env` option B : OBSIDIAN_VAULT_PATH vide, subsume B4) + entrée series.json + README utilisateur (convention co-located §3.1)
 
 #### Jalons 12-16 — Interactif + all + fallback + intégration — TODO (hors batch courant)
 - [ ] J12 apply mode interactif (etc-update-like y/n/s/d/3/r/q/? §4.2)

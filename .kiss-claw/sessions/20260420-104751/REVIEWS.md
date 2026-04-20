@@ -292,3 +292,155 @@ ergonomiques mineures sur l'UX smoke-test manuelle + propagation per_target.
 **For kiss-orchestrator**
 proceed to next jalons (9-10 verify + refresh), avec note de documenter la
 convention `patches_dir` dans l'user-facing README avant jalon 11 (record)
+
+### REV-0006
+
+- **date**     : 2026-04-20
+- **subject**  : kiss-executor Phase 3 jalons 9-11 — verify.py + refresh.py + CLI rework + patches/series.json prod + patch 0003 B3 pilote + patches/README.md (120 l). 86 tests OK (67+19).
+- **verdict**  : approved-with-notes
+
+**Summary**
+Jalons 9-11 livrés et conformes au design §2.3 / §4.1 / §3.2. Les 3 checks verify
+(integrity/drift/coherence) sont implémentés, `--json` et `--strict` fonctionnent,
+exit codes 0/1/3 respectés (+ 2 pour unknown id sur refresh). Sémantique refresh
+clean→baseline / patched→patched correcte, no-op et refus dirty explicites. Patch B3
+option B motivé (vendor/.env gitignored → --index échoue) ; déviation documentée
+triple (DEP-3 header, README §B3 deviation, inline test caveat). SHAs déclarés
+(patch/baseline/patched) vérifiés byte-pour-byte contre le réel. E2E reproduit les
+sorties attendues. Deux points méritent suivi : (1) le **chemin d'écriture de refresh
+n'est couvert par aucun test** — chaque test converge sur no-op ou refus ; le
+docstring de `TestRefreshPatchedStalePatched` reconnaît même que "by construction [le
+write path] is impossible for a single-target record" ; l'audit de `_append_history`
++ mutation `series.json` repose sur une lecture statique ; (2) le caveat #2 apply B3
+(--index vs gitignored) est cohérent avec le report jalon 14, mais la conséquence
+est qu'**aucun des 3 patches pilotes prévus (B1/B2/B3) n'a pu être apply end-to-end**
+à ce stade — le pipeline `clean→patched` reste validé uniquement sur fixtures
+synthétiques.
+
+**Design fidelity — line-by-line**
+
+| Design ref | Attendu | Observé |
+|---|---|---|
+| §2.3 l. 111-113 | verify = recalcul patch_sha256 + drift vendor + coherence targets | 3 checks présents (`_check_integrity`, `_check_target_coherence`, `_check_drift`) |
+| §4.1 l. 309 | verify \| flags `--json, --strict` | les 2 présents, `--strict` upgrade drift→fail (test `test_per_target_drift_strict_exits_1`) |
+| §4.1 l. 308 | refresh \| flags `--dry-run, --yes` | les 2 présents, sémantique OK |
+| §4.1 l. 293-296 | exit 0/1/2/3 | verify: 0=ok, 1=mismatch/coherence/strict-drift, 3=invalid registry. refresh: 0=ok, 1=dirty/absent/aborted, 2=unknown id (argparse couvre les argv invalides) |
+| §3.2 schema record | id/order/status/severity/title/patch_file/patch_sha256/targets[{path,baseline,patched}] | series.json b3 record strictement conforme, pas de champ inventé |
+| §3.2 top-level | `vendor_baseline_sha` string sha256 | présent, `9c1b5176...` = `git rev-parse HEAD` vendor (vérifié) |
+| §3.1 layout | `patches/series.json + NNNN-*.patch + history/ + archive/` | README cite ce layout verbatim |
+| §3.4 DEP-3 | Description/Origin/Forwarded/Last-Update + X-Severity/X-Baseline/X-Patched | présents + extensions légitimes X-Patch-Id, X-Rationale |
+
+**SHA spot-check** (byte-pour-byte)
+- `patch_sha256 = 0f2326c8...` : `sha256sum patches/0003-vendor-env-remove.patch` → **match**.
+- `baseline_sha256 = 0a1678c1...` : `sha256sum vendor/obsidian-wiki/.env` (état actuel) → **match**.
+- `patched_sha256 = 6cdab2e0...` : recomposé via `patch -p1` sur copie de l'.env courant → **match**.
+- `vendor_baseline_sha` = HEAD vendor courant → **match**.
+
+**E2E run**
+- `list` → 1 ligne `b3-vendor-env-remove BLOCKING active`, exit 0.
+- `status` → tableau, `1/1 clean`, `Vendor baseline: ok (recorded sha 9c1b5176)`, exit 0.
+- `verify` → `[b3-vendor-env-remove] ok` + `verify: all records ok`, exit 0.
+- `verify --json` → JSON valide `registry_valid:true, summary.ok:1, drift:ok`, exit 0.
+- `verify --strict` → idem (pas de drift actuel), exit 0.
+- `refresh b3 --dry-run --yes` → `[b3] no changes — clean state sha already matches`, exit 0.
+- `apply b3 --dry-run` → `error: .env: does not exist in index` + exit 1 — **caveat #2 reproduit tel que décrit**, message user-lisible.
+
+**Issues**
+
+- [SHOULD FIX / tests] **Couverture zéro du chemin d'écriture `refresh_record`**. Les 7 tests
+  refresh convergent soit sur no-op (clean/patched sha matchent), soit sur refus
+  (dirty/absent). Les lignes 241-266 de `refresh.py` (mutation de
+  `target_record.targets[].field` + `registry.save` + `_append_history`) ne sont
+  jamais exécutées en test. Le docstring de `TestRefreshPatchedStalePatched`
+  concède que "[le write path] is impossible for a single-target record" ; c'est
+  une contrainte logique réelle (observed=patched ↔ registry.patched = observed),
+  mais la solution existe : **un test multi-target** où target A matche la
+  baseline et target B est drifté peut exercer le write path. À enrichir dès
+  qu'un vrai patch multi-target entre dans la suite (p2-read-dotenv au jalon 12+
+  par exemple). Pour l'instant le write path est "validé par lecture" seulement.
+
+- [SHOULD FIX / semantic] **`refresh` sémantique "patched-only"** limite fortement
+  l'utilité. Par construction, quand `state=patched` le `patched_sha256` du
+  registre égale déjà le sha observé (sinon état≠patched). Donc l'appel refresh
+  sur un patched ne peut jamais modifier `patched_sha256`. Idem miroir côté clean.
+  Le docstring du module §Semantics le dit clairement mais l'implémentation n'a
+  donc que **2 valeurs d'usage réelles** : (a) confirmer qu'il n'y a rien à faire
+  (no-op), (b) refuser sur dirty. Pour un vrai "pull du submodule vendor puis
+  refresh baseline", il faudrait que le record ait **plusieurs targets** dont
+  certains sont clean/patched et d'autres dirty — et le refresh ne traiterait que
+  les lanes clean/patched. OK pour jalon 10 MVP. À repenser si le besoin émerge
+  (ex. flag `--accept-new-baseline` qui force l'écrasement même en dirty).
+
+- [MUST FIX-LIGHT / caveat #2 UX] Le `apply b3 --dry-run` échoue proprement avec
+  `error: .env: does not exist in index` mais **ne suggère pas le workaround**
+  (patch -p1 manuel, ou "wait for jalon 14 runtime.json override"). L'utilisateur
+  qui lit uniquement la sortie CLI ne sait pas que c'est une limitation framework
+  connue. Proposé : `apply` pourrait détecter le pattern "does not exist in index"
+  dans stderr de git apply --check, et ajouter 1 ligne `hint: target is likely
+  gitignored — see patches/README.md §B3 deviation`. Non bloquant pour ce jalon
+  mais minimise le risque de confusion au prochain usage réel. Alternative : un
+  test `test_apply.py::test_gitignored_target_returns_hint` pour formaliser le
+  comportement attendu quand jalon 14 arrivera.
+
+- [nit / §3.4 DEP-3] Le header du `.patch` n'a pas de champ `Author:` (design §3.4
+  l. 270 montre `Author: opérateur <ops@example.invalid>`). Remplacé par les
+  champs DEP-3 légitimes `Origin: local` + `Bug-Ref:`, ce qui est conforme à la
+  spec DEP-3 (Author est recommandé mais non obligatoire). Petit décalage vs
+  l'exemple du design doc, sans conséquence technique. Le framework ne lit pas
+  Author pour l'instant.
+
+- [nit / vendor_baseline_sha non validé] Cohérent avec REV-0004 issue #3 —
+  `registry.validate` ne vérifie toujours pas le format du top-level
+  `vendor_baseline_sha`. La valeur actuelle (`9c1b5176...` 40 hex) est un **SHA-1**
+  git, pas un SHA-256 — ce qui est correct pour `git rev-parse HEAD` mais le nom
+  du champ (`..._sha`) est volontairement agnostique. Le design §3.2 n'est pas
+  plus précis. À clarifier au jalon 12 si besoin : soit renommer
+  `vendor_baseline_commit` (git sha1), soit accepter les 2 formes. Non bloquant.
+
+- [nit / refresh history mkdir side-effect] `_append_history` crée `patches/history/`
+  dès le **premier refresh** avec des changes, sur un projet qui n'a pas encore
+  de répertoire history. Pas de test négatif — OK puisque `mkdir(parents=True,
+  exist_ok=True)` est idempotent, mais les tests no-op ne créent pas le dossier,
+  donc on n'a jamais observé un `patches/history/<order>-history.jsonl` réel.
+  À vérifier E2E au premier refresh effectif.
+
+- [nit / README] `patches/README.md` 146 lignes (annoncé ~120 l par executor).
+  Légèrement au-dessus mais la densité est bonne (Layout + Add + Retire + Caveats
+  + Related). Audience mainteneur claire, renvoi explicite vers `scripts/docs/`
+  pour l'UX user. Cohérent Diataxis (c'est bien de la "reference implémenteur",
+  pas un tutorial). ~5 lignes de doublons entre "How to add" §5-6 et
+  `scripts/docs/how-to.md` probables — vérifiable seulement quand on regarde
+  les deux côte-à-côte, non fait ici.
+
+**Ce qui est bien (équilibre)**
+1. **Design fidelity verbatim** : les docstrings de `verify.py` et `refresh.py`
+   citent les lignes du design (l. 111-113, l. 308, l. 309) et l'implémentation
+   respecte chaque mot. C'est la première fois qu'on a une telle traçabilité
+   explicite dans ce projet.
+2. **Caveat #2 traité en triple** : DEP-3 Description en multi-ligne, README §B3
+   deviation, inline commit message — difficile de louper l'info.
+3. **Exit codes correctement décomposés** : 0/1/2/3 conformes à §4.1, avec le
+   3 utilisé pour registry invalid (première fois dans le projet) et le 2 bien
+   réservé à "argv invalide OU id inconnu" dans refresh (judicieux).
+4. **`--strict` proprement isolé** : drift never silent, mais la promotion
+   warning→fail est explicite et testée (`test_per_target_drift_strict_exits_1`).
+5. **REV-0005 note #5 absorbée** : `verify` n'est plus un stub, sort 0 sur empty
+   registry, exit 3 sur schema violation. Le pipeline code-retour §4.1 est enfin
+   complet (après REV-0004 note #5 et REV-0005 notes #5/#6).
+6. **SHA auditabilité** : les 4 SHAs déclarés (patch + baseline + patched +
+   vendor_baseline) sont tous vérifiables à la main et matchent. Zéro fabrication.
+7. **Patch B3 option B** : justification en 3 points solide (git --index,
+   fallback safe, subsume B4). L'option B vide la variable plutôt que la
+   supprimer → côté skill, un `OBSIDIAN_VAULT_PATH=` vide passera un test
+   `[ -n "$OBSIDIAN_VAULT_PATH" ]` (échoue) ou `[ -z ... ]` (pass) selon le
+   code du skill — à valider quand on brancera B3 au vrai flux d'ingest, mais
+   c'est cohérent avec l'analyse "fail-fast plutôt que mis-route".
+
+**For kiss-orchestrator**
+proceed to next jalons (12-14 : record command + multi-target + runtime.json
+overrides). Les 2 SHOULD FIX (couverture write-path + sémantique refresh
+"patched-only") sont structurels au MVP jalon 10 et seront naturellement levés
+quand un vrai patch multi-target entrera dans la suite. Le MUST FIX-LIGHT
+(hint gitignored) est très léger, traitable dans le jalon 14 de toute façon
+puisque c'est là que le workaround runtime.json arrive. Aucun rework 9-11
+nécessaire.
