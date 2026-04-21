@@ -366,7 +366,169 @@ pour 12 identiques diffs serait bruyant à reviewer et à orchestrer.
 
 ---
 
-## §7. Lectures complémentaires
+## §8. Exécution dynamique via `runtime.json` (J14)
+
+Le principe posé par ADR-0002 (§4 ci-dessus) — « la stratégie d'exécution
+ne doit pas polluer le registre logique » — est concrétisé au jalon J14.
+`patches/runtime.json` est désormais **consommé** par les commandes
+`apply` et `rollback` via `scripts/patch_system/runtime.py`.
+
+### 8.1 Pourquoi un second fichier, plutôt qu'un champ par record ?
+
+Trois raisons, toutes pratiques :
+
+- **Review propre** : ajouter un patch (édition `series.json`) ≠ changer
+  la stratégie d'exécution (édition `runtime.json`). Deux diffs
+  distincts, deux revues distinctes.
+- **Changement global sans pseudo-commits** : passer toute la série de
+  `git-apply` à `patch(1)` en cas d'incident, c'est un seul diff sur
+  `runtime.json`, pas N pseudo-commits « update method » par record.
+- **Testabilité** : les tests peuvent injecter un `runtime.json` mocké
+  sans toucher au registre.
+
+### 8.2 La méthode `patch` comme fallback
+
+Le fallback `patch(1)` répond à un cas d'usage précis : les targets
+gitignored dans le vendor repo. `git apply --index` refuse ces fichiers
+(« does not exist in index »). `patch(1)`, qui opère directement sur le
+working tree sans passer par l'index, n'a pas cette contrainte. Le record
+pilote `b3-vendor-env-remove` (target `vendor/obsidian-wiki/.env`)
+exploite précisément cet override.
+
+Le choix d'une méthode externe (plutôt que `git apply --no-index`) tient
+à la sémantique : `patch(1) -N` détecte nativement un patch déjà appliqué
+et refuse — préservant l'idempotence du framework. `git apply --no-index`
+n'a pas cet équivalent.
+
+### 8.3 Override par section, pas par clé
+
+`overrides[id]` remplace des **sections entières** (`apply`, `rollback`,
+`detection`, `drift`), pas des clés individuelles. Conséquence : si un
+override définit `{"apply": {"method": "patch", "args": ["-p1", "-N"]}}`,
+la section `apply` du défaut est complètement ignorée pour ce record. Cela
+évite les semi-configurations difficiles à raisonner (méthode changée mais
+args hérités sans sens).
+
+### 8.4 `runtime.json` absent = defaults hardcodés
+
+Le fichier est **optionnel**. Son absence est traitée silencieusement par
+`runtime_mod.load_runtime` : les defauts codés en dur sont retournés, et
+tous les records utilisent `git apply --index` / `git apply --reverse --index`.
+En J8, aucune commande ne consommait `runtime.json` — l'absence et la
+présence avaient le même effet. En J14+, l'absence reste valide et reste
+le cas par défaut. Seuls les records explicitement listés dans
+`overrides` changent de stratégie.
+
+---
+
+## §9. Vérification et rafraîchissement : gérer le drift (J9-J10)
+
+Un vendor non-forkable dérive, nécessairement, dès que l'upstream
+avance. La stratégie `submodule pristine + régénération déterministe`
+(ADR-0001) règle la question du **stockage** de l'état patché — mais pas
+celle du **diagnostic** (« mes SHAs de baseline sont-ils toujours
+d'actualité ? ») ni celle de la **réconciliation** (« quelle est la
+nouvelle baseline après `git submodule update` ? »). Les jalons J9 et J10
+répondent à ces deux questions, dans cet ordre.
+
+### 9.1 `verify` — diagnostic, pas mutation
+
+`verify` est **read-only**. Il exécute trois contrôles complémentaires :
+
+- **Intégrité** : le fichier `.patch` sur disque correspond-il toujours à
+  son `patch_sha256` enregistré ? Une non-correspondance signale que
+  quelqu'un a édité le `.patch` manuellement sans passer par `record`.
+- **Drift vendor** : le HEAD du submodule correspond-il au
+  `vendor_baseline_sha` enregistré à la racine du registre, et chaque
+  target matche-t-il encore `baseline_sha256` ou `patched_sha256` ?
+- **Cohérence des targets** : un record `active` référence-t-il des
+  targets qui existent toujours sous `vendor_root` ?
+
+Le design §5.5 (« escalade drift ») exige qu'un drift ne soit **jamais
+silencieux**. `verify` en mode normal le remonte en texte mais reste en
+exit `0` ; `--strict` le promeut en failure. Ce double mode permet à la
+même commande de servir deux publics : l'opérateur qui inspecte
+manuellement (non-strict) et la CI qui veut un signal dur (strict).
+
+### 9.2 `refresh` — mutation conservatrice
+
+`refresh` est la seule opération qui écrit dans `series.json` sans passer
+par `apply` / `rollback`. Sa portée est volontairement étroite :
+
+- Il ne touche **qu'un seul champ par target** : `baseline_sha256` si
+  l'état est `clean`, `patched_sha256` si l'état est `patched`.
+- Il **refuse** les états ambigus (`dirty`, `partial`, `absent`,
+  `unknown`). La justification : refresh sur un état ambigu
+  enregistrerait comme « baseline » ou « patched » un SHA qui n'a de
+  sens pour aucune des deux lanes. Mieux vaut exiger que l'opérateur
+  réconcilie d'abord (apply ou rollback) avant de capturer le nouveau
+  SHA.
+- Il **n'essaie jamais** de recalculer les deux SHAs en même temps. La
+  raison : sur un working tree donné, un seul des deux est observable.
+  Connaître `patched_sha256` après un refresh `clean` demanderait de
+  vraiment appliquer le patch — ce que le framework laisse au prochain
+  `apply`.
+
+Chaque refresh externalise un événement dans
+`patches/history/<order>-history.jsonl` (§3.2 design) avec l'ancien et le
+nouveau SHA — ce qui rend la trajectoire du registre auditable dans le
+temps sans gonfler `series.json`.
+
+---
+
+## §10. Opérations batch `--all` (J13)
+
+Le mode opératoire canonique — régénérer l'état patched à partir du
+submodule pristine — n'a pas de sens « un record à la fois » : après un
+`git submodule update`, on veut re-rejouer **toute la série**. D'où
+`apply --all` et `rollback --all`, ajoutés au jalon J13.
+
+### 10.1 Ordre ascendant (apply) vs descendant (rollback)
+
+`apply --all` itère par `order` croissant ; `rollback --all` par `order`
+décroissant. C'est la structure naturelle d'une pile : on empile dans
+l'ordre 1, 2, 3, et on dépile 3, 2, 1. Un patch dont l'effet dépend d'un
+patch précédent (cas des records composés `b1` → `b2` où `b2.baseline`
+== `b1.patched`) s'applique correctement dans l'ordre d'empilement — et
+rollback correctement dans l'ordre inverse.
+
+### 10.2 Un seul `flock` pour toute la run
+
+Les opérations mutantes prennent toujours un `flock` sur `patches/.lock`
+(§4 reference). Pour `--all`, le dispatcher pose **une seule fois** le
+lock au démarrage et le relâche en fin de run. Pas un lock par record.
+Cela évite d'ouvrir une fenêtre entre deux records pendant laquelle un
+autre process pourrait s'intercaler.
+
+Les read-only (`list`, `status`, `describe`, `diff`, `verify`) ne prennent
+pas le lock et restent utilisables pendant une run `--all` — utile pour
+monitorer la progression depuis un second terminal.
+
+### 10.3 Quitter proprement (`q`) ≠ échouer
+
+Dans un apply `--all --interactive`, l'utilisateur peut presser `q` dans
+le menu pour interrompre la run. Ce n'est pas un échec : les patches déjà
+appliqués **restent appliqués** (pas de rollback), et le run retourne
+exit `0` avec un résumé annoté `(user quit)`. C'est délibéré — un `q`
+après 7 records réussis sur 10 ne doit pas masquer les 7 succès en les
+étiquetant « failed ».
+
+À l'inverse, `--stop-on-fail` (opt-in explicite) break à la première
+failure **réelle**. Sans ce flag, la run continue et cumule les erreurs,
+puis sort en `1` si au moins un record a échoué.
+
+### 10.4 `rollback --all` : skip des records non-appliqués
+
+Le garde-fou `last_result == "patched"` (déjà présent en J7 pour
+`rollback` simple) s'applique aussi à `rollback --all`, mais avec un
+comportement différent : au lieu de refuser avec exit `1`, le record est
+**silencieusement skippé** et compté dans la ligne `M skipped` du résumé.
+Cela permet de rollback sainement une série partiellement appliquée sans
+avoir à identifier manuellement les records concernés.
+
+---
+
+## §11. Lectures complémentaires
 
 - Design complet : [`../../docs/260420-patch-system-design.md`](../../docs/260420-patch-system-design.md)
 - État de l'art : [`../../docs/260420-patch-system-soa.md`](../../docs/260420-patch-system-soa.md)

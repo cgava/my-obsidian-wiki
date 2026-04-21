@@ -26,6 +26,32 @@ quadrants distincts pour quatre besoins distincts.
 > (J9), `refresh` (J10) et `record` (J11) sont présentes en stub et retournent
 > un message « not yet implemented » avec exit code non nul.
 
+> **Mise à jour J15** — sont désormais opérationnels :
+>
+> - `verify` (J9) : 3 contrôles par record — intégrité `patch_sha256`, drift
+>   vendor (top-level + per-target), cohérence des targets. Flags `--json`,
+>   `--strict`. Voir `reference.md §1.8`, `how-to.md` (recette « vérifier
+>   l'intégrité »), `explanation.md §9`.
+> - `refresh <id>` (J10) : recalcul de `baseline_sha256` ou
+>   `patched_sha256` selon l'état courant. Flags `--dry-run`, `--yes`. Voir
+>   `reference.md §1.9`, `how-to.md` (recette « rafraîchir »),
+>   `explanation.md §9`.
+> - `apply` / `rollback` : ajout de `--all` + `--stop-on-fail` (J13) et,
+>   pour `apply`, `--interactive` / `--force` / `--auto-3way` (J12, J14).
+>   Menu d'arbitrage `y/n/s/d/3/r/q/?` (J12, style `etc-update`). Voir
+>   `reference.md §1.5bis / §1.6bis`, `how-to.md` (recettes batch et
+>   interactive), `explanation.md §10`.
+> - `patches/runtime.json` (J14) : stratégie d'exécution par-record
+>   (`defaults` + `overrides[id]`). Exemple livré : `b3-vendor-env-remove`
+>   routé vers `patch(1) -p1 -N` pour contourner le fichier `.env`
+>   gitignored du vendor. Voir `reference.md §7`, `explanation.md §8`,
+>   et `../../patches/README.md` pour le guide mainteneur.
+>
+> La commande `record` (J12) reste un stub — elle retourne exit `2` avec
+> `"patch-system: command 'record' not yet implemented (design §7 —
+> jalon 12)"`. Jalon 16 (documentation user-facing, le présent
+> dossier) en cours.
+
 ## Pointeurs amont
 
 La documentation utilisateur ci-présente **ne remplace pas** les documents de

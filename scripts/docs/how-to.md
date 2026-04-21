@@ -277,3 +277,232 @@ cours.
 
 > Source : docs/260420-patch-system-design.md §5.7 (verrou `flock`
 > obligatoire sur les opérations mutantes).
+
+---
+
+## Comment vérifier l'intégrité et le drift du registre ?
+
+Depuis le jalon J9, `verify` exécute trois contrôles par record —
+intégrité (sha-256 du `.patch`), drift (vendor baseline + per-target),
+cohérence (targets existent). Voir
+[reference.md §1.8](./reference.md#18-verify-j9).
+
+```bash
+./scripts/patch-system verify
+```
+
+Pour intégrer à un pipeline CI (échoue au premier drift, pas juste aux
+failures dures) :
+
+```bash
+./scripts/patch-system verify --strict
+```
+
+Pour exploiter la sortie en script :
+
+```bash
+./scripts/patch-system verify --json | jq '.summary'
+```
+
+Exit codes utilisables :
+- `0` : tout OK (ou uniquement drift en non-strict).
+- `1` : intégrité mismatch, target manquante, ou drift avec `--strict`.
+- `3` : registre invalide (schéma).
+
+---
+
+## Comment rafraîchir les SHAs après un `git submodule update` ?
+
+Après un pull du submodule vendor, les `baseline_sha256` enregistrés
+peuvent pointer vers un ancien état upstream. `refresh <id>` (J10)
+recalcule les SHAs depuis le vendor courant, selon l'état composite
+du record :
+
+- Si l'état est `clean` → seul `baseline_sha256` est refreshé.
+- Si l'état est `patched` → seul `patched_sha256` est refreshé.
+- Tout autre état (`dirty`, `partial`, `absent`) → refusé ; résoudre
+  d'abord par `apply` ou `rollback`.
+
+**Procédure recommandée** :
+
+```bash
+# 1. Constater le drift
+./scripts/patch-system verify
+
+# 2. Aperçu des changements sans écrire
+./scripts/patch-system refresh <id> --dry-run
+
+# 3. Si OK, appliquer (passer --yes pour sauter la confirmation)
+./scripts/patch-system refresh <id>
+```
+
+Chaque refresh écrit un événement dans
+`patches/history/<order>-history.jsonl` avec l'ancien et le nouveau
+SHA par target — audit trail utilisable par `describe`.
+
+Détails des flags et exit codes :
+[reference.md §1.9](./reference.md#19-refresh-j10).
+
+---
+
+## Comment ré-appliquer toute la série après un pull du submodule ?
+
+Le cas canonique (ADR-0001 : vendor submodule pristine, état patched
+régénéré à la demande). Depuis J13, `apply --all` itère tous les records
+`active` par `order` croissant :
+
+```bash
+./scripts/patch-system apply --all
+```
+
+Pour arrêter au premier échec plutôt que de continuer :
+
+```bash
+./scripts/patch-system apply --all --stop-on-fail
+```
+
+Pour pré-voir ce qui s'appliquerait sans écrire :
+
+```bash
+./scripts/patch-system apply --all --dry-run
+```
+
+Le résumé de fin de run prend la forme :
+```
+apply --all: <N> applied, <M> skipped, <K> failed
+```
+
+Les records déjà dans l'état `patched` sont comptés dans `skipped`
+(idempotence). Un unique `flock` est posé pour toute la run ; les
+lectures (`list`, `status`, `verify`) restent utilisables en parallèle.
+
+Détails : [reference.md §1.5bis](./reference.md#15bis-options-batch-et-interactives-de-apply-j12-j14).
+
+---
+
+## Comment tout désappliquer ?
+
+Depuis J13, `rollback --all` pop l'ensemble par ordre **décroissant** de
+`order` :
+
+```bash
+./scripts/patch-system rollback --all
+```
+
+Les records dont `last_result != "patched"` sont skippés avec un message
+explicite — cela protège contre un rollback sur un record qui n'a jamais
+été appliqué (garde-fou `last_result`, déjà présent en J7, étendu à
+`--all`).
+
+Résumé de fin :
+```
+rollback --all: <N> reverted, <M> skipped, <K> failed
+```
+
+Pour interrompre au premier échec :
+```bash
+./scripts/patch-system rollback --all --stop-on-fail
+```
+
+---
+
+## Comment arbitrer un conflit (mode interactif, `--force`, `--auto-3way`) ?
+
+Lorsque `status` remonte un record en `dirty` ou `partial`, trois leviers
+d'arbitrage sont disponibles depuis J12-J14 :
+
+**Option 1 — tenter une fusion 3-way automatique** (J14, opt-in) :
+```bash
+./scripts/patch-system apply <id> --auto-3way
+```
+Tente `git apply --3way --index` avant d'escalader. Sur succès, continue
+comme un apply normal. Sur échec, retombe sur la logique interactive ou
+`--yes`.
+
+**Option 2 — menu interactif à la `etc-update`** (J12) :
+```bash
+./scripts/patch-system apply <id> --interactive
+```
+Affiche pour chaque target le menu :
+```
+Patch <NNNN> target <path> is <state>.
+   y  apply — force l'application (ecrase les modifs locales si conflit)
+   n  skip  — laisse la cible telle quelle, status sera 'dirty'
+   s  show  — affiche le diff 3-points (pristine | local | patched)
+   d  diff  — affiche seulement le diff patch->local
+   3  3way  — tente `git apply --3way` (merge automatique)
+   r  refresh — met a jour baseline_sha256 depuis l'etat local courant
+   q  quit  — arrete le run, les patches deja traites restent appliques
+   ?  help  — re-affiche ce menu
+Choice [y/n/s/d/3/r/q/?] (default n):
+```
+Entrée vide = `n` (skip, défaut conservateur). `q` interrompt la run
+sans rollback des patches déjà traités.
+
+**Option 3 — écrasement brut** (J14, batch non-interactif) :
+```bash
+./scripts/patch-system apply <id> --force
+```
+`--force` équivaut à `y` implicite sur tout état ambigu, sans prompt.
+À utiliser en CI quand on sait que l'écrasement est acceptable.
+
+**Interdits** : `--yes` et `--interactive` sont mutuellement exclusifs.
+Tenter les deux ensemble imprime :
+```
+[<id>] invalid flags: --yes and --interactive are mutually exclusive.
+```
+et sort en exit `1`.
+
+Sans aucun flag d'arbitrage, les états `dirty` / `partial` sont refusés
+avec le message canonique §4.3 :
+```
+[<id>] <state> -> ambiguous state.
+  ERROR: --yes mode forbids interactive arbitration.
+  Rerun with --interactive to resolve, or --force to overwrite.
+```
+
+Détails du menu et exit codes :
+[reference.md §1.5bis](./reference.md#15bis-options-batch-et-interactives-de-apply-j12-j14).
+
+---
+
+## Comment appliquer un patch sur un fichier gitignored (override `runtime.json`) ?
+
+Certains targets (ex. `vendor/obsidian-wiki/.env`) sont gitignored dans
+le vendor repo. `git apply --index` les refuse avec
+`error: <file>: does not exist in index`. Depuis J14, `patches/runtime.json`
+permet de router un record spécifique vers `patch(1)`, qui n'a pas cette
+contrainte.
+
+**Étape 1** : créer ou éditer `patches/runtime.json` :
+
+```json
+{
+  "schema_version": "1",
+  "overrides": {
+    "<record-id>": {
+      "apply":    {"method": "patch", "args": ["-p1", "-N"]},
+      "rollback": {"method": "patch", "args": ["-p1", "-R"]}
+    }
+  }
+}
+```
+
+**Étape 2** : vérifier que `patch(1)` est disponible (`which patch`).
+Son absence produit un échec explicite `patch(1) not available,
+fallback impossible`, exit `1`.
+
+**Étape 3** : appliquer normalement :
+```bash
+./scripts/patch-system apply <record-id>
+```
+
+Le dispatcher détecte l'override, invoque `patch -p1 -N` au lieu de
+`git apply --index`. `patch -N` refuse un ré-apply idempotent (aligné
+avec la sémantique d'idempotence du framework).
+
+Le dépôt livre un exemple `patches/runtime.json` qui active ce routage
+pour `b3-vendor-env-remove`. Schéma complet :
+[reference.md §7](./reference.md#7-schéma-runtimejson-j14).
+Guide mainteneur + discussion du trade-off : `patches/README.md`
+(section « Contourner les fichiers gitignored »).

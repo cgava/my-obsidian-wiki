@@ -215,6 +215,87 @@ En cas de succès, écrit dans `series.json` :
 **Exit codes** : `0` succès (y compris no-op idempotent), `1` échec
 opérationnel (état ambigu, `git apply` en erreur, target absent).
 
+### 1.5bis Options batch et interactives de `apply` (J12-J14)
+
+Depuis les jalons J12-J14, `apply` accepte les flags supplémentaires
+suivants. Ils s'ajoutent à ceux du §1.5 ; tous sont implémentés dans
+`scripts/patch_system/cli.py` (sous-parser `apply`) et
+`scripts/patch_system/apply.py`.
+
+**Synopsis complet (J15)**
+```
+usage: patch-system apply [-h] [--dry-run] [--yes] [--interactive] [--force]
+                          [--auto-3way] [--all] [--stop-on-fail] [id]
+```
+
+Le positionnel `id` devient optionnel : il est absent lorsque `--all`
+est fourni.
+
+**Flags ajoutés**
+
+| Flag | Jalon | Effet |
+|---|---|---|
+| `--interactive` | J12 | Force l'affichage du menu §4.2 (`y/n/s/d/3/r/q/?`) à chaque target, même pour les états `clean`. Mutuellement exclusif avec `--yes`. |
+| `--force` | J14 | Équivaut à un `y` implicite sur tout état ambigu (`dirty`, `partial`) — écrase les modifications locales. Aucun prompt. |
+| `--auto-3way` | J14 | Opt-in §5.5 : tente `git apply --3way --index` avant d'escalader vers le menu ou de refuser. Sur succès, continue comme un apply normal ; sur échec, retombe sur la logique interactive / `--yes`. |
+| `--all` | J13 | Applique tous les records `status == active` par ordre croissant de `order`. `id` doit être absent. |
+| `--stop-on-fail` | J13 | Avec `--all` : break à la première failure. Sans ce flag, la boucle continue et l'exit code final est `0` si tout a réussi, `1` sinon. |
+
+**Exclusion mutuelle `--yes` / `--interactive`**
+
+```
+[<id>] invalid flags: --yes and --interactive are mutually exclusive.
+```
+Exit code : `0` n'est PAS émis — `apply` renvoie un résultat `success=False` (exit `1`).
+
+**Message canonique du refus `--yes`** (design §4.3, via `ui.py`) :
+```
+[<id>] <state> -> ambiguous state.
+  ERROR: --yes mode forbids interactive arbitration.
+  Rerun with --interactive to resolve, or --force to overwrite.
+```
+
+**Menu interactif** (§4.2, implémenté dans `scripts/patch_system/ui.py`) — les
+huit lettres du prompt :
+
+| Lettre | Choix | Effet |
+|---|---|---|
+| `y` | apply | Force l'application (écrase les modifs locales si conflit). |
+| `n` | skip | Laisse la cible telle quelle. **Défaut quand l'utilisateur tape Entrée vide.** Le status résultant sera `dirty`. |
+| `s` | show | Affiche le diff 3-points (pristine / local / patched). |
+| `d` | diff | Affiche le diff `patch -> local`. |
+| `3` | 3way | Tente `git apply --3way`. |
+| `r` | refresh | (redirige vers la commande `refresh` — à invoquer à part). |
+| `q` | quit | Arrête la run ; les patches déjà traités restent appliqués (pas de rollback). |
+| `?` | help | Ré-affiche le menu. |
+
+Comportement EOF (stdin fermé / non-TTY) : équivaut à `n` (skip) avec un
+message informatif. Lettres inconnues : le menu est ré-affiché.
+
+**Sémantique `apply --all`**
+
+- Itère les records `active` par `order` croissant (source :
+  `cli.py::_cmd_apply_all`).
+- Un `flock` unique est posé pour toute la run (§4.3 verbatim : « 1
+  flock pour la run entière, pas par record »). Les read-only
+  `list` / `status` / `describe` / `diff` / `verify` restent
+  disponibles pendant la run.
+- `q` dans le menu interactif : break avec `user quit`, exit `0`
+  (run considérée interrompue par l'utilisateur, pas en échec).
+- Résumé de fin de run imprimé sur stdout :
+  ```
+  apply --all: <N> applied, <M> skipped, <K> failed[ (user quit)]
+  ```
+
+**Exit codes `apply --all`**
+
+| Cas | Exit |
+|---|---|
+| Tout appliqué ou idempotent | `0` |
+| `q` dans le menu (user quit) | `0` |
+| Au moins un record en failed, sans `--stop-on-fail` | `1` |
+| Premier échec avec `--stop-on-fail` | `1` |
+
 ### 1.6 `rollback`
 
 **Synopsis**
@@ -245,6 +326,44 @@ met à jour `last_applied` + `last_result` (typiquement `clean`).
 **Exit codes** : `0` succès, `1` refus (garde-fou ou `git apply --reverse` en
 erreur).
 
+### 1.6bis Options batch de `rollback` (J13)
+
+Depuis le jalon J13, `rollback` accepte `--all` et `--stop-on-fail`.
+
+**Synopsis complet (J15)**
+```
+usage: patch-system rollback [-h] [--dry-run] [--yes] [--all] [--stop-on-fail] [id]
+```
+
+**Flags ajoutés**
+
+| Flag | Effet |
+|---|---|
+| `--all` | Pop l'ensemble des records `active` par ordre **décroissant** de `order` (design §4.1 ligne 307 verbatim). `id` doit être absent. |
+| `--stop-on-fail` | Avec `--all` : break à la première failure. |
+
+**Sémantique `rollback --all`** (source : `cli.py::_cmd_rollback_all`)
+
+- Ordre décroissant : un LIFO sur la pile `apply --all`.
+- Un `flock` unique pour toute la run (§4).
+- Skip automatique des records dont `last_result != "patched"` — chaque
+  skip produit une ligne :
+  ```
+  [<id>] skip (last_result != 'patched')
+  ```
+- Résumé de fin de run :
+  ```
+  rollback --all: <N> reverted, <M> skipped, <K> failed
+  ```
+
+**Exit codes**
+
+| Cas | Exit |
+|---|---|
+| Tout reverted ou skippé | `0` |
+| Au moins un échec, sans `--stop-on-fail` | `1` |
+| Premier échec avec `--stop-on-fail` | `1` |
+
 ### 1.7 Commandes à venir (non opérationnelles en J8)
 
 > **`verify` (jalon J9)**, **`refresh` (jalon J10)**, **`record` (jalon J11)**
@@ -260,6 +379,135 @@ erreur).
 >   'record' not yet implemented (design §7 — jalon 11)"`.
 >
 > Se référer à [explanation.md](./explanation.md) pour la conception prévue.
+
+### 1.8 `verify` (J9)
+
+**Synopsis**
+```
+usage: patch-system verify [-h] [--json] [--strict]
+```
+
+**Description**
+Exécute trois contrôles pour chaque record du registre (source :
+`scripts/patch_system/verify.py`, aligné design §2.3 « Flux verify » et
+§4.1 ligne 309) :
+
+1. **Intégrité** : recalcule le sha-256 du fichier `.patch` et le compare
+   à `patch_sha256` du record. Mismatch → le fichier `.patch` a été
+   modifié depuis son enregistrement.
+2. **Drift** : compare `vendor_baseline_sha` (racine du registre, si
+   présent) à la tête du submodule vendor courant. Également, pour chaque
+   target : si le sha courant du fichier ≠ `baseline_sha256` ET ≠
+   `patched_sha256`, remonte un drift per-target.
+3. **Cohérence des targets** : pour chaque record `active`, chaque
+   `targets[].path` doit exister sous `vendor_root` (sinon incohérence
+   dure).
+
+**Flags**
+
+| Flag | Type | Défaut | Effet |
+|---|---|---|---|
+| `-h, --help` | flag | — | Aide. |
+| `--json` | flag | `false` | Sortie JSON `{registry_valid, vendor_baseline_recorded, vendor_baseline_current, records, summary, strict}`. |
+| `--strict` | flag | `false` | Remonte les `drift` en failure (exit `1`). Sans `--strict`, un drift détecté est un warning et l'exit code reste `0`. |
+
+**Sortie texte**
+
+Une ligne par record :
+```
+[<id>] ok
+[<id>] integrity=<mismatch|missing> coherence=<missing_targets> drift=<detected>
+    - <issue 1>
+    - <issue 2>
+```
+
+Ligne de pied de page : drift `vendor_baseline` si détecté, ou
+`Vendor baseline: not recorded in series.json` si absent. Bannière finale :
+`verify: all records ok` ou `verify: failures detected`.
+
+**Exit codes** (design §4.1 verbatim)
+
+| Cas | Exit |
+|---|---|
+| Tous OK (ou seulement warnings en mode non-strict) | `0` |
+| Registre vide | `0` (message `verify: (empty registry — nothing to verify)`) |
+| Intégrité mismatch / `.patch` manquant sur disque | `1` |
+| Target manquante sur un record `active` | `1` |
+| Drift détecté avec `--strict` | `1` |
+| Registre invalide (schéma §2) | `3` |
+
+**Exemples**
+```bash
+./scripts/patch-system verify
+./scripts/patch-system verify --json
+./scripts/patch-system verify --strict         # drift = failure
+```
+
+> Escalade drift : un drift n'est **jamais silencieux** (§5.5 design).
+> Sans `--strict` il est remonté en texte + exit `0` ; avec `--strict` il
+> devient un échec dur.
+
+### 1.9 `refresh` (J10)
+
+**Synopsis**
+```
+usage: patch-system refresh [-h] [--dry-run] [--yes] id
+```
+
+**Description**
+Recalcule `baseline_sha256` ou `patched_sha256` du record `id` depuis
+l'état courant des targets sur disque (source :
+`scripts/patch_system/refresh.py`, aligné design §4.1 ligne 308 et §7
+item 10).
+
+Règle selon l'état composite du record au moment de l'appel :
+
+| État courant | Champ recalculé | Autre champ |
+|---|---|---|
+| `clean` | `baseline_sha256` de chaque target | `patched_sha256` laissé intact. |
+| `patched` | `patched_sha256` de chaque target | `baseline_sha256` laissé intact. |
+| `dirty`, `partial`, `absent`, `unknown` | — | Refusé : résoudre (apply ou rollback) d'abord. |
+
+Chaque refresh réussi écrit une ligne d'historique dans
+`patches/history/<order>-history.jsonl` (§2.2), de la forme :
+```json
+{"ts": "...", "action": "refresh", "result": "clean|patched",
+ "operator": "auto", "commit": null,
+ "changes": [{"path": "...", "field": "baseline_sha256",
+              "old": "<sha>", "new": "<sha>"}, ...]}
+```
+
+**Flags**
+
+| Flag | Type | Défaut | Effet |
+|---|---|---|---|
+| `id` (positionnel) | string | — | Identifiant du record. |
+| `-h, --help` | flag | — | Aide. |
+| `--dry-run` | flag | `false` | Affiche les changements, n'écrit rien (ni registre ni historique). |
+| `--yes` | flag | `false` | Saute la confirmation interactive `y/N`. |
+
+**Confirmation interactive**
+
+Sans `--yes` et après l'aperçu des diffs, `refresh` demande :
+```
+[<id>] apply <N> change(s) to series.json? (y/N)
+```
+Réponse `y` / `yes` (case-insensitive) confirme ; toute autre réponse
+ou EOF annule (`aborted by user`, exit `1`).
+
+**Exit codes** (design §4.1)
+
+| Cas | Exit |
+|---|---|
+| Refresh écrit avec succès (ou `--dry-run`) | `0` |
+| `id` inconnu | `2` |
+| État incohérent (`dirty` / `partial` / `absent` / `unknown`), target absente, ou refus utilisateur | `1` |
+
+**Exemples**
+```bash
+./scripts/patch-system refresh t0001-readme-add-section --dry-run
+./scripts/patch-system refresh t0001-readme-add-section --yes
+```
 
 ---
 
@@ -480,3 +728,112 @@ export PYTHONPATH="${SCRIPT_DIR}${PYTHONPATH:+:${PYTHONPATH}}"
 strippé et le reste est joint à `vendor_root`. Cela permet à la même entrée
 registre de pointer vers un working tree arbitraire (en particulier les
 fixtures de test).
+
+---
+
+## §7. Schéma `runtime.json` (J14)
+
+Source autoritaire : `docs/260420-patch-system-design.md §3.3` et
+`docs/adr/ADR-0002-registre-runtime-separation.md`. Implémentation :
+`scripts/patch_system/runtime.py`.
+
+`patches/runtime.json` est la **config d'exécution** — complémentaire et
+séparée du registre logique `series.json` (§2). Elle est **optionnelle** :
+absente, les defauts codés en dur s'appliquent.
+
+### 7.1 Structure
+
+```json
+{
+  "schema_version": "1",
+  "defaults": {
+    "detection": {
+      "strategy": "composite",
+      "signals": ["checksum", "git-apply-reverse-check"]
+    },
+    "apply":    {"method": "git-apply", "args": ["--index", "--whitespace=nowarn"]},
+    "rollback": {"method": "git-apply", "args": ["--reverse", "--index"]},
+    "drift":    {"mode": "verbose"}
+  },
+  "overrides": {
+    "<record-id>": {
+      "apply":    {"method": "patch", "args": ["-p1", "-N"]},
+      "rollback": {"method": "patch", "args": ["-p1", "-R"]}
+    }
+  }
+}
+```
+
+### 7.2 Clés reconnues
+
+| Clé top-level | Obligatoire | Valeur |
+|---|---|---|
+| `schema_version` | oui | Chaîne `"1"` (seule version supportée). |
+| `defaults` | non | Objet regroupant les sections par défaut. |
+| `overrides` | non | Table `{record_id: {section: value, ...}}`. |
+
+**Sections reconnues** dans `defaults[*]` et chaque bloc `overrides[id]` :
+`detection`, `apply`, `rollback`, `drift`. Toute autre section (top-level
+ou dans un override) déclenche une erreur `RuntimeError_`.
+
+### 7.3 Defaults hardcodés
+
+Si `runtime.json` est absent, les défauts retournés par `default_runtime()`
+(verbatim design §3.3) sont :
+
+| Section | Valeur par défaut |
+|---|---|
+| `detection` | `{"strategy": "composite", "signals": ["checksum", "git-apply-reverse-check"]}` |
+| `apply` | `{"method": "git-apply", "args": ["--index", "--whitespace=nowarn"]}` |
+| `rollback` | `{"method": "git-apply", "args": ["--reverse", "--index"]}` |
+| `drift` | `{"mode": "verbose"}` |
+
+Si `runtime.json` est présent mais sans la section `defaults` pour une
+clé donnée, la valeur hardcodée correspondante est utilisée (merge).
+
+### 7.4 Résolution par record
+
+Pour appliquer ou rollback un record `<id>`,
+`runtime_mod.resolve_strategy(<id>, runtime)` retourne une copie des
+defauts avec les sections de `overrides[<id>]` substituées intégralement
+(remplacement par section, pas key-par-key).
+
+**Méthodes `apply.method` supportées**
+
+| Méthode | Effet | Args typiques |
+|---|---|---|
+| `git-apply` (défaut) | `git apply <args> <patch_file>` depuis `vendor_root`. | `["--index", "--whitespace=nowarn"]` |
+| `patch` | `patch <args> < <patch_file>` depuis `vendor_root`. Vérifie la présence du binaire `patch(1)` ; absence → echec avec message `patch(1) not available, fallback impossible`. | `["-p1", "-N"]` (apply), `["-p1", "-R"]` (rollback) |
+
+### 7.5 Exemple livré — override B3 vers `patch(1)`
+
+`patches/runtime.json` (livré jalon J14) :
+```json
+{
+  "schema_version": "1",
+  "overrides": {
+    "b3-vendor-env-remove": {
+      "apply":    {"method": "patch", "args": ["-p1", "-N"]},
+      "rollback": {"method": "patch", "args": ["-p1", "-R"]}
+    }
+  }
+}
+```
+
+Raison : la target `vendor/obsidian-wiki/.env` est gitignored dans le
+vendor repo ; `git apply --index` refuse avec `error: <file>: does not
+exist in index`. Le binaire `patch(1)` n'a pas cette contrainte. Voir
+`patches/README.md §« Contourner les fichiers gitignored »` pour la
+discussion mainteneur.
+
+### 7.6 Conditions d'erreur
+
+`runtime_mod.load_runtime` lève `RuntimeError_` dans les cas suivants :
+
+- Fichier non JSON ou racine non objet.
+- Clé top-level inconnue (autre que `schema_version`, `defaults`,
+  `overrides`).
+- `schema_version` ≠ `"1"`.
+- `defaults` ou `overrides` pas un objet.
+- Section inconnue dans `defaults` ou dans un bloc `overrides[id]`.
+- Bloc `overrides[id]` pas un objet.

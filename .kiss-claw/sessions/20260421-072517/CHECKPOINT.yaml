@@ -1,0 +1,67 @@
+session: 20260421-072517
+created: '2026-04-21T05:37:16'
+need: null
+why: 'Non élicité — l''utilisateur n''a pas souhaité détailler. Catégorie : non_élicité'
+raw: |
+  "la documentation diataxis des scripts, a été faite quand nous en étions à J8, il manque tout ce qui a été fait depuis... Fait une revue de ce qui manque dans la doc diataxis, et faits la évoluer. je veux un plan en une seule étape (1 seul cycle executor, verificator, executor)"
+  Précision : "je veux que tu rajoutes la doc qui manque pour ajouter, si c'est nécessaire, ce qui a été fait depuis J9-J15. c'est une doc au format diataxis, donc il faut bien respecter ce format"
+  Précision verificator : "le verificator devra faire une analyse de l'ensemble de la documentation (celle existante + celle ajoutée), notamment pour valider la cohérence et detecter les manques de l'ensemble, pour éviter l'effet patchwork"
+elicited: |
+  Étendre (pas réécrire) la doc Diataxis dans scripts/docs/ pour couvrir les évolutions du patch-system livrées après J8 (J9-J15).
+  Executor audit + rédige en une seule délégation (option A choisie).
+  Verificator doit analyser la doc COMPLÈTE (J8 + ajouts) pour cohérence globale et éviter l'effet patchwork — peut remonter des remarques touchant la doc J8 existante.
+  Rework traité dans une 2ème délégation executor.
+  Total : 1 seul cycle executor → verificator → executor.
+constraints: |
+  - Format Diataxis strict (tutorial / how-to / reference / explanation)
+  - Langue : français
+  - Chemin cible : scripts/docs/
+  - Non-goal : pas de réécriture de la doc J8 existante (seules corrections de cohérence acceptables en rework)
+  - Non-goal : pas d'ajout non justifié par une évolution J9-J15
+log:
+- agent: kiss-orchestrator
+  claude_session: 0b01c58c-c428-4cc6-92aa-9cf5ecf773e1
+  timestamp: '2026-04-21T05:37:25Z'
+  task: |-
+    I'm kiss-orchestrator. Store inspection OK, memory loaded. There are **4 in-progress sessions** — it's safer to ask before creating a 5th:
+
+    ```
+    === IN-PROGRESS SESSIONS ===
+    ID                | Created              | Title
+    ------------------|----------------------|-------------------------------------------
+    20260415-075913   | 2026-04-15T07:59:13  | (no title)
+    20260416-180815   | 2026-04-16T18:08:15  | Obsidian Link Fixer
+    20260419-081905   | 2026-04-19T08:19:05  | my-obsidian-wiki — Mise en production VPS
+    20260420-104751   | 2026-04-20T10:47:51  | obsidian-wiki Vendor Patch System
+    ============================
+    ```
+
+    The latest (`20260420-104751` — Vendor Patch System) has uncommitted modifications (CHECKPOINT.yaml, PLAN.md, REVIEWS.md) in the working tree, so it looks like work was interrupted mid-flight.
+
+    **How would you like to proceed?**
+    - `resume 20260420-104751` (Vendor Patch System — has WIP)
+    - `resume 20260419-081905` (Mise en prod VPS)
+    - `resume 20260416-180815` (Obsidian Link Fixer)
+    - `new` — open a fresh session (I'll ask the 3 INIT questions)
+    - `list` — show all sessions including done
+  result: 'Session 20260421-072517 créée. Plan mono-phase à 3 steps (audit+rédaction
+    → review globale → rework). Option A retenue (executor audit+rédige en une délégation).
+    Contraintes clés : Diataxis strict, FR, scripts/docs/, pas de réécriture J8. Verificator
+    doit analyser la doc complète pour éviter effet patchwork.'
+  children: []
+  artifacts: ''
+  decisions: ''
+  issues: ''
+  rationale: ''
+- agent: "kiss-orchestrator"
+  claude_session: "0b01c58c-c428-4cc6-92aa-9cf5ecf773e1"
+  timestamp: "2026-04-21T07:59:18Z"
+  task: "Délégation kiss-executor — Step 1 : audit J8 vs J9-J15 + rédaction additions Diataxis"
+  result: "En cours — délégué à kiss-executor (option A : audit + rédaction en une seule délégation)"
+  children:
+    - agent: "kiss-executor"
+      claude_session: "kiss-executor-20260421-072517"
+      timestamp: "2026-04-21T08:10:08Z"
+      task: "Step 1 — Audit J8 vs J9-J15 + rédaction directe additions Diataxis dans scripts/docs/ (option A)"
+      result: "4/5 fichiers modifiés. README.md: Statut étendu J9-J15. reference.md: +§1.5bis apply flags J12-J14 + menu 8 lettres, +§1.6bis rollback --all, +§1.8 verify, +§1.9 refresh, +§7 runtime.json. how-to.md: +6 recettes. explanation.md: +§8 runtime, +§9 verify/refresh, +§10 batch --all, §7→§11. tutorial.md intact. Non-goal respecté (2 touches mineures flaggées). Diataxis strict, FR, scripts/docs/. Exactitude vérifiée vs code réel. Incohérences J8-existant vs nouveaux ajouts (§1.5/1.6/1.7 stubs, how-to diagnose, explanation §2.3/§4) déférées au verificator."
+      children: []

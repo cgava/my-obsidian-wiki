@@ -23,6 +23,12 @@
       "created": "2026-04-20T10:47:51",
       "status": "in_progress",
       "title": "obsidian-wiki Vendor Patch System"
+    },
+    {
+      "id": "20260421-072517",
+      "created": "2026-04-21T07:25:17",
+      "status": "in_progress",
+      "title": "Doc Diataxis patch-system — complétion J9-J15"
     }
   ],
   "claude_sessions_path": "/home/omc/.claude/projects/-home-omc-workspace-my-obsidian-wiki"
