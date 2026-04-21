@@ -55,13 +55,19 @@ log:
   rationale: ''
 - agent: "kiss-orchestrator"
   claude_session: "0b01c58c-c428-4cc6-92aa-9cf5ecf773e1"
-  timestamp: "2026-04-21T07:59:18Z"
-  task: "Délégation kiss-executor — Step 1 : audit J8 vs J9-J15 + rédaction additions Diataxis"
-  result: "En cours — délégué à kiss-executor (option A : audit + rédaction en une seule délégation)"
+  timestamp: "2026-04-21T08:15:41Z"
+  task: "Délégation kiss-verificator — Step 2 : revue GLOBALE doc complète (J8 existant + ajouts J9-J15)"
+  result: "En cours — WIP commit 417eeee. Délégué à kiss-verificator avec demande explicite d'analyser la cohérence globale et de détecter les incohérences J8↔ajouts (effet patchwork à éviter)."
   children:
     - agent: "kiss-executor"
       claude_session: "kiss-executor-20260421-072517"
       timestamp: "2026-04-21T08:10:08Z"
       task: "Step 1 — Audit J8 vs J9-J15 + rédaction directe additions Diataxis dans scripts/docs/ (option A)"
       result: "4/5 fichiers modifiés. README.md: Statut étendu J9-J15. reference.md: +§1.5bis apply flags J12-J14 + menu 8 lettres, +§1.6bis rollback --all, +§1.8 verify, +§1.9 refresh, +§7 runtime.json. how-to.md: +6 recettes. explanation.md: +§8 runtime, +§9 verify/refresh, +§10 batch --all, §7→§11. tutorial.md intact. Non-goal respecté (2 touches mineures flaggées). Diataxis strict, FR, scripts/docs/. Exactitude vérifiée vs code réel. Incohérences J8-existant vs nouveaux ajouts (§1.5/1.6/1.7 stubs, how-to diagnose, explanation §2.3/§4) déférées au verificator."
+      children: []
+    - agent: "kiss-verificator"
+      claude_session: "kiss-verificator-20260421-072517"
+      timestamp: "2026-04-21T08:20:48Z"
+      task: "Review globale doc complète scripts/docs/ (J8 + ajouts J9-J15) — couverture, Diataxis, cohérence, exactitude"
+      result: "Verdict: needs-rework. Couverture J9-J15 complète et Diataxis respecté. MAIS 11 contradictions factuelles J8↔ajouts (sections 'non implémenté' obsolètes dans ref §1.0/§1.5/§1.7/§2.5/§4.1, how-to diagnose, explanation §2.3/§4) + gap numérotation explanation §6→§8. 3 SHOULD FIX (menu s/d fallback, formulation exit code §1.5bis, note §4.2 --read-only). Tutorial intact validé. REV-0001 enregistré."
       children: []
