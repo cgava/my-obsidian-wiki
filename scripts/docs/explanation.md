@@ -99,13 +99,7 @@ Cité design §5.5 :
 Le principe est celui de la **surprise minimale** : un outil qui patche
 du code ne devrait pas modifier silencieusement la sémantique de la
 correction. Le mode interactif (J12) + `--force` / `--auto-3way` (J14)
-sont prévus pour donner à l'opérateur le contrôle explicite de chaque
-arbitrage.
-
-> **État actuel (J8)** : le mode interactif n'est pas encore implémenté.
-> En attendant, les états `dirty` / `partial` sont refusés avec un message
-> explicite `arbitration required`, et l'opérateur doit corriger
-> manuellement ou attendre J12.
+donnent à l'opérateur le contrôle explicite de chaque arbitrage.
 
 ### 2.4 Versatile
 
@@ -225,11 +219,9 @@ Cette séparation permet de :
 - **Testabilité** : les tests peuvent injecter une `runtime.json` mockée
   sans toucher le registre réel.
 
-> **État J1-J8** : `series.json` est implémenté et consommé. `runtime.json`
-> est prévu pour les jalons ultérieurs (intégration avec
-> `--auto-3way` / fallback `patch(1)` jalon 14). Les commandes
-> opérationnelles J8 utilisent des défauts en dur (`git apply --index`,
-> `git apply --reverse --index`).
+Voir [§7 (reference.md)](./reference.md#7-schéma-runtimejson-j14) pour le
+schéma consommé depuis J14 et [§7 ci-dessous](#7-exécution-dynamique-via-runtimejson-j14)
+pour la discussion.
 
 ---
 
@@ -366,14 +358,14 @@ pour 12 identiques diffs serait bruyant à reviewer et à orchestrer.
 
 ---
 
-## §8. Exécution dynamique via `runtime.json` (J14)
+## §7. Exécution dynamique via `runtime.json` (J14)
 
 Le principe posé par ADR-0002 (§4 ci-dessus) — « la stratégie d'exécution
 ne doit pas polluer le registre logique » — est concrétisé au jalon J14.
 `patches/runtime.json` est désormais **consommé** par les commandes
 `apply` et `rollback` via `scripts/patch_system/runtime.py`.
 
-### 8.1 Pourquoi un second fichier, plutôt qu'un champ par record ?
+### 7.1 Pourquoi un second fichier, plutôt qu'un champ par record ?
 
 Trois raisons, toutes pratiques :
 
@@ -386,7 +378,7 @@ Trois raisons, toutes pratiques :
 - **Testabilité** : les tests peuvent injecter un `runtime.json` mocké
   sans toucher au registre.
 
-### 8.2 La méthode `patch` comme fallback
+### 7.2 La méthode `patch` comme fallback
 
 Le fallback `patch(1)` répond à un cas d'usage précis : les targets
 gitignored dans le vendor repo. `git apply --index` refuse ces fichiers
@@ -400,7 +392,7 @@ Le choix d'une méthode externe (plutôt que `git apply --no-index`) tient
 et refuse — préservant l'idempotence du framework. `git apply --no-index`
 n'a pas cet équivalent.
 
-### 8.3 Override par section, pas par clé
+### 7.3 Override par section, pas par clé
 
 `overrides[id]` remplace des **sections entières** (`apply`, `rollback`,
 `detection`, `drift`), pas des clés individuelles. Conséquence : si un
@@ -409,7 +401,7 @@ la section `apply` du défaut est complètement ignorée pour ce record. Cela
 évite les semi-configurations difficiles à raisonner (méthode changée mais
 args hérités sans sens).
 
-### 8.4 `runtime.json` absent = defaults hardcodés
+### 7.4 `runtime.json` absent = defaults hardcodés
 
 Le fichier est **optionnel**. Son absence est traitée silencieusement par
 `runtime_mod.load_runtime` : les defauts codés en dur sont retournés, et
@@ -421,7 +413,7 @@ le cas par défaut. Seuls les records explicitement listés dans
 
 ---
 
-## §9. Vérification et rafraîchissement : gérer le drift (J9-J10)
+## §8. Vérification et rafraîchissement : gérer le drift (J9-J10)
 
 Un vendor non-forkable dérive, nécessairement, dès que l'upstream
 avance. La stratégie `submodule pristine + régénération déterministe`
@@ -431,7 +423,7 @@ d'actualité ? ») ni celle de la **réconciliation** (« quelle est la
 nouvelle baseline après `git submodule update` ? »). Les jalons J9 et J10
 répondent à ces deux questions, dans cet ordre.
 
-### 9.1 `verify` — diagnostic, pas mutation
+### 8.1 `verify` — diagnostic, pas mutation
 
 `verify` est **read-only**. Il exécute trois contrôles complémentaires :
 
@@ -450,7 +442,7 @@ exit `0` ; `--strict` le promeut en failure. Ce double mode permet à la
 même commande de servir deux publics : l'opérateur qui inspecte
 manuellement (non-strict) et la CI qui veut un signal dur (strict).
 
-### 9.2 `refresh` — mutation conservatrice
+### 8.2 `refresh` — mutation conservatrice
 
 `refresh` est la seule opération qui écrit dans `series.json` sans passer
 par `apply` / `rollback`. Sa portée est volontairement étroite :
@@ -476,14 +468,14 @@ temps sans gonfler `series.json`.
 
 ---
 
-## §10. Opérations batch `--all` (J13)
+## §9. Opérations batch `--all` (J13)
 
 Le mode opératoire canonique — régénérer l'état patched à partir du
 submodule pristine — n'a pas de sens « un record à la fois » : après un
 `git submodule update`, on veut re-rejouer **toute la série**. D'où
 `apply --all` et `rollback --all`, ajoutés au jalon J13.
 
-### 10.1 Ordre ascendant (apply) vs descendant (rollback)
+### 9.1 Ordre ascendant (apply) vs descendant (rollback)
 
 `apply --all` itère par `order` croissant ; `rollback --all` par `order`
 décroissant. C'est la structure naturelle d'une pile : on empile dans
@@ -492,7 +484,7 @@ patch précédent (cas des records composés `b1` → `b2` où `b2.baseline`
 == `b1.patched`) s'applique correctement dans l'ordre d'empilement — et
 rollback correctement dans l'ordre inverse.
 
-### 10.2 Un seul `flock` pour toute la run
+### 9.2 Un seul `flock` pour toute la run
 
 Les opérations mutantes prennent toujours un `flock` sur `patches/.lock`
 (§4 reference). Pour `--all`, le dispatcher pose **une seule fois** le
@@ -504,7 +496,7 @@ Les read-only (`list`, `status`, `describe`, `diff`, `verify`) ne prennent
 pas le lock et restent utilisables pendant une run `--all` — utile pour
 monitorer la progression depuis un second terminal.
 
-### 10.3 Quitter proprement (`q`) ≠ échouer
+### 9.3 Quitter proprement (`q`) ≠ échouer
 
 Dans un apply `--all --interactive`, l'utilisateur peut presser `q` dans
 le menu pour interrompre la run. Ce n'est pas un échec : les patches déjà
@@ -517,7 +509,7 @@ après 7 records réussis sur 10 ne doit pas masquer les 7 succès en les
 failure **réelle**. Sans ce flag, la run continue et cumule les erreurs,
 puis sort en `1` si au moins un record a échoué.
 
-### 10.4 `rollback --all` : skip des records non-appliqués
+### 9.4 `rollback --all` : skip des records non-appliqués
 
 Le garde-fou `last_result == "patched"` (déjà présent en J7 pour
 `rollback` simple) s'applique aussi à `rollback --all`, mais avec un
@@ -528,7 +520,7 @@ avoir à identifier manuellement les records concernés.
 
 ---
 
-## §11. Lectures complémentaires
+## §10. Lectures complémentaires
 
 - Design complet : [`../../docs/260420-patch-system-design.md`](../../docs/260420-patch-system-design.md)
 - État de l'art : [`../../docs/260420-patch-system-soa.md`](../../docs/260420-patch-system-soa.md)

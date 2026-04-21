@@ -33,9 +33,9 @@ positional arguments:
     diff                Show the patch content.
     apply               Apply a patch.
     rollback            Reverse-apply a patch.
-    verify              (stub until jalon 9/10) Integrity checks.
-    refresh             (not yet implemented — jalon 10)
-    record              (not yet implemented — jalon 11)
+    verify              Integrity + drift + target coherence (design §4.1).
+    refresh             Recompute baseline/patched sha256 from current state.
+    record              (not yet implemented — jalon 12)
 
 options:
   -h, --help            show this help message and exit
@@ -168,22 +168,24 @@ défaut si stdout est un TTY (`+` vert, `-` rouge, `@@` cyan, headers `+++`
 
 **Synopsis**
 ```
-usage: patch-system apply [-h] [--dry-run] [--yes] id
+usage: patch-system apply [-h] [--dry-run] [--yes] [--interactive] [--force]
+                          [--auto-3way] [--all] [--stop-on-fail] [id]
 ```
 
-**Description**
-Applique le patch du record `id` via `git apply --index` (forward), en
-respectant la règle d'idempotence et le garde-fou non-interactif.
+Le positionnel `id` est optionnel : absent lorsque `--all` est fourni, présent sinon.
 
-Comportement selon l'état initial (résultat de la détection composite) :
+**Description**
+Applique le patch du record `id` (ou tous les records `active` avec `--all`) en respectant l'idempotence. Moteur par défaut : `git apply --index`. Substituable par record via `runtime.json` (voir §7).
+
+Comportement selon l'état initial (composite) :
 
 - `clean` → applique (ou simule en `--dry-run`).
 - `patched` → no-op, message `patched -> skip (already applied)`, exit `0`.
 - `absent` → refuse, exit `1` (un ou plusieurs targets manquent).
-- `dirty` / `partial` sans `--yes` → refuse (`arbitration required`), exit `1`.
-- `dirty` / `partial` avec `--yes` → refuse quand même (`--yes mode forbids
-  interactive arbitration`), exit `1`. Le mode interactif (jalon 12) et
-  `--force` (jalon 14) ne sont pas encore implémentés.
+- `dirty` / `partial` sans flag d'arbitrage → refuse (message canonique §4.3), exit `1`.
+- `dirty` / `partial` avec `--interactive` → affiche le menu §4.2 par target.
+- `dirty` / `partial` avec `--force` → applique en écrasant les modifs locales.
+- `dirty` / `partial` avec `--auto-3way` → tente `git apply --3way --index` ; sur échec, retombe sur la logique précédente (menu ou refus).
 
 En cas de succès, écrit dans `series.json` :
 - `last_applied` : instant UTC ISO-8601 (ex. `"2026-04-20T10:52:13Z"`)
@@ -193,62 +195,25 @@ En cas de succès, écrit dans `series.json` :
 
 | Flag | Type | Défaut | Effet |
 |---|---|---|---|
-| `id` (positionnel) | string | — | Identifiant du record. |
+| `id` (positionnel) | string | — | Identifiant du record. Absent si `--all`. |
 | `-h, --help` | flag | — | Aide. |
-| `--dry-run` | flag | `false` | Invoque seulement `git apply --check`. N'écrit ni sur disque ni dans le registre. |
-| `--yes` | flag | `false` | Non-interactif strict. Comme il n'existe pas encore de mode interactif (J12), `--yes` revient pour l'instant à refuser les états ambigus avec un message explicite. |
-
-**Flags documentés dans le design mais pas encore implémentés**
-
-| Flag | Jalon | Statut |
-|---|---|---|
-| `--interactive` | J12 | Non implémenté — absent du parser argparse. |
-| `--force` | J14 | Non implémenté — absent du parser argparse. |
-| `--auto-3way` | J14 | Non implémenté. |
-
-**Exemples**
-```bash
-./scripts/patch-system apply <id> --dry-run
-./scripts/patch-system apply <id>
-```
-
-**Exit codes** : `0` succès (y compris no-op idempotent), `1` échec
-opérationnel (état ambigu, `git apply` en erreur, target absent).
-
-### 1.5bis Options batch et interactives de `apply` (J12-J14)
-
-Depuis les jalons J12-J14, `apply` accepte les flags supplémentaires
-suivants. Ils s'ajoutent à ceux du §1.5 ; tous sont implémentés dans
-`scripts/patch_system/cli.py` (sous-parser `apply`) et
-`scripts/patch_system/apply.py`.
-
-**Synopsis complet (J15)**
-```
-usage: patch-system apply [-h] [--dry-run] [--yes] [--interactive] [--force]
-                          [--auto-3way] [--all] [--stop-on-fail] [id]
-```
-
-Le positionnel `id` devient optionnel : il est absent lorsque `--all`
-est fourni.
-
-**Flags ajoutés**
-
-| Flag | Jalon | Effet |
-|---|---|---|
-| `--interactive` | J12 | Force l'affichage du menu §4.2 (`y/n/s/d/3/r/q/?`) à chaque target, même pour les états `clean`. Mutuellement exclusif avec `--yes`. |
-| `--force` | J14 | Équivaut à un `y` implicite sur tout état ambigu (`dirty`, `partial`) — écrase les modifications locales. Aucun prompt. |
-| `--auto-3way` | J14 | Opt-in §5.5 : tente `git apply --3way --index` avant d'escalader vers le menu ou de refuser. Sur succès, continue comme un apply normal ; sur échec, retombe sur la logique interactive / `--yes`. |
-| `--all` | J13 | Applique tous les records `status == active` par ordre croissant de `order`. `id` doit être absent. |
-| `--stop-on-fail` | J13 | Avec `--all` : break à la première failure. Sans ce flag, la boucle continue et l'exit code final est `0` si tout a réussi, `1` sinon. |
+| `--dry-run` | flag | `false` | Invoque seulement `git apply --check` (ou `patch --dry-run` selon runtime). N'écrit ni sur disque ni dans le registre. |
+| `--yes` | flag | `false` | Non-interactif strict : refuse les états ambigus avec le message §4.3 canonique. Mutuellement exclusif avec `--interactive`. |
+| `--interactive` | flag | `false` | Force l'affichage du menu d'arbitrage §4.2 (`y/n/s/d/3/r/q/?`) pour chaque target, même sur `clean`. Mutuellement exclusif avec `--yes`. |
+| `--force` | flag | `false` | Équivaut à un `y` implicite sur tout état ambigu (`dirty`, `partial`) — écrase les modifications locales. Aucun prompt. |
+| `--auto-3way` | flag | `false` | Opt-in §5.5 : tente `git apply --3way --index` avant d'escalader vers le menu ou de refuser. Sur succès, continue comme un apply normal ; sur échec, retombe sur la logique interactive / `--yes`. |
+| `--all` | flag | `false` | Applique tous les records `status == active` par ordre croissant de `order`. `id` doit être absent. |
+| `--stop-on-fail` | flag | `false` | Avec `--all` : break à la première failure. Sans ce flag, la boucle continue et l'exit code final est `0` si tout a réussi, `1` sinon. |
 
 **Exclusion mutuelle `--yes` / `--interactive`**
 
+Tenter les deux ensemble produit :
 ```
 [<id>] invalid flags: --yes and --interactive are mutually exclusive.
 ```
-Exit code : `0` n'est PAS émis — `apply` renvoie un résultat `success=False` (exit `1`).
+Exit code : `1`.
 
-**Message canonique du refus `--yes`** (design §4.3, via `ui.py`) :
+**Message canonique du refus en mode non-interactif** (design §4.3, via `ui.py`) :
 ```
 [<id>] <state> -> ambiguous state.
   ERROR: --yes mode forbids interactive arbitration.
@@ -262,92 +227,83 @@ huit lettres du prompt :
 |---|---|---|
 | `y` | apply | Force l'application (écrase les modifs locales si conflit). |
 | `n` | skip | Laisse la cible telle quelle. **Défaut quand l'utilisateur tape Entrée vide.** Le status résultant sera `dirty`. |
-| `s` | show | Affiche le diff 3-points (pristine / local / patched). |
-| `d` | diff | Affiche le diff `patch -> local`. |
+| `s` | show | Affiche le diff 3-points (pristine / local / patched). **Note** : fallback actuel — affiche le contenu du `.patch` préfixé d'un avertissement « not yet implemented ». Vrai 3-point diff post-P3. |
+| `d` | diff | Affiche le diff `patch -> local`. **Note** : même fallback — affiche le contenu du `.patch`. |
 | `3` | 3way | Tente `git apply --3way`. |
 | `r` | refresh | (redirige vers la commande `refresh` — à invoquer à part). |
 | `q` | quit | Arrête la run ; les patches déjà traités restent appliqués (pas de rollback). |
 | `?` | help | Ré-affiche le menu. |
+
+> **J15** : les lettres `s` et `d` du menu sont en fallback — le vrai
+> 3-point diff (pristine / local / patched) et le vrai diff `patch->local`
+> sont prévus post-P3. En attendant, l'utilisateur voit le contenu du
+> `.patch` avec un préfixe informatif.
 
 Comportement EOF (stdin fermé / non-TTY) : équivaut à `n` (skip) avec un
 message informatif. Lettres inconnues : le menu est ré-affiché.
 
 **Sémantique `apply --all`**
 
-- Itère les records `active` par `order` croissant (source :
-  `cli.py::_cmd_apply_all`).
-- Un `flock` unique est posé pour toute la run (§4.3 verbatim : « 1
-  flock pour la run entière, pas par record »). Les read-only
-  `list` / `status` / `describe` / `diff` / `verify` restent
-  disponibles pendant la run.
-- `q` dans le menu interactif : break avec `user quit`, exit `0`
-  (run considérée interrompue par l'utilisateur, pas en échec).
+- Itère les records `active` par `order` croissant (source : `cli.py::_cmd_apply_all`).
+- Un `flock` unique est posé pour toute la run (§4.3 verbatim : « 1 flock pour la run entière, pas par record »). Les read-only `list` / `status` / `describe` / `diff` / `verify` restent disponibles pendant la run.
+- `q` dans le menu interactif : break avec `user quit`, exit `0` (run considérée interrompue par l'utilisateur, pas en échec).
 - Résumé de fin de run imprimé sur stdout :
   ```
   apply --all: <N> applied, <M> skipped, <K> failed[ (user quit)]
   ```
 
-**Exit codes `apply --all`**
+**Exemples**
+```bash
+./scripts/patch-system apply <id> --dry-run
+./scripts/patch-system apply <id>
+./scripts/patch-system apply <id> --interactive
+./scripts/patch-system apply <id> --auto-3way
+./scripts/patch-system apply <id> --force
+./scripts/patch-system apply --all
+./scripts/patch-system apply --all --stop-on-fail
+```
+
+**Exit codes**
 
 | Cas | Exit |
 |---|---|
-| Tout appliqué ou idempotent | `0` |
-| `q` dans le menu (user quit) | `0` |
-| Au moins un record en failed, sans `--stop-on-fail` | `1` |
-| Premier échec avec `--stop-on-fail` | `1` |
+| Succès (apply direct, no-op idempotent, `--dry-run` OK, user quit en interactive, `--all` tout OK) | `0` |
+| État ambigu sans flag d'arbitrage, `git apply` en erreur, target absent, mutex `--yes`/`--interactive`, ou `--all` avec au moins un failed | `1` |
 
 ### 1.6 `rollback`
 
 **Synopsis**
 ```
-usage: patch-system rollback [-h] [--dry-run] [--yes] id
+usage: patch-system rollback [-h] [--dry-run] [--yes] [--all] [--stop-on-fail] [id]
 ```
 
+Le positionnel `id` est optionnel : absent lorsque `--all` est fourni.
+
 **Description**
-Annule le patch via `git apply --reverse --index`. Garde-fou : refuse si
-`record["last_result"] != "patched"` dans le registre. En cas de succès,
-met à jour `last_applied` + `last_result` (typiquement `clean`).
+Annule le patch via `git apply --reverse --index` (ou méthode `patch(1)` selon runtime, §7). Garde-fou : refuse si `record["last_result"] != "patched"` dans le registre. En cas de succès, met à jour `last_applied` + `last_result` (typiquement `clean`).
 
 **Flags**
 
 | Flag | Type | Défaut | Effet |
 |---|---|---|---|
-| `id` (positionnel) | string | — | Identifiant du record. |
+| `id` (positionnel) | string | — | Identifiant du record. Absent si `--all`. |
 | `-h, --help` | flag | — | Aide. |
 | `--dry-run` | flag | `false` | `git apply --reverse --check` uniquement. |
-| `--yes` | flag | `false` | Accepté pour uniformité CLI ; n'a pas d'effet sur le garde-fou en J7. |
+| `--yes` | flag | `false` | Accepté pour uniformité CLI ; n'a pas d'effet sur le garde-fou `last_result`. |
+| `--all` | flag | `false` | Pop l'ensemble des records `active` par ordre **décroissant** de `order` (design §4.1 ligne 307 verbatim). `id` doit être absent. |
+| `--stop-on-fail` | flag | `false` | Avec `--all` : break à la première failure. |
 
 **Flag documenté dans le design mais pas encore implémenté**
 
 | Flag | Jalon | Statut |
 |---|---|---|
-| `--force` | J14 | Non implémenté. Seule façon future d'outrepasser le garde-fou `last_result`. |
-
-**Exit codes** : `0` succès, `1` refus (garde-fou ou `git apply --reverse` en
-erreur).
-
-### 1.6bis Options batch de `rollback` (J13)
-
-Depuis le jalon J13, `rollback` accepte `--all` et `--stop-on-fail`.
-
-**Synopsis complet (J15)**
-```
-usage: patch-system rollback [-h] [--dry-run] [--yes] [--all] [--stop-on-fail] [id]
-```
-
-**Flags ajoutés**
-
-| Flag | Effet |
-|---|---|
-| `--all` | Pop l'ensemble des records `active` par ordre **décroissant** de `order` (design §4.1 ligne 307 verbatim). `id` doit être absent. |
-| `--stop-on-fail` | Avec `--all` : break à la première failure. |
+| `--force` | J14 | Non implémenté. Seule façon future d'outrepasser le garde-fou `last_result`. Message émis lors du refus : `If you know what you're doing, rerun with --force (jalon 14, not yet implemented).` |
 
 **Sémantique `rollback --all`** (source : `cli.py::_cmd_rollback_all`)
 
 - Ordre décroissant : un LIFO sur la pile `apply --all`.
 - Un `flock` unique pour toute la run (§4).
-- Skip automatique des records dont `last_result != "patched"` — chaque
-  skip produit une ligne :
+- Skip automatique des records dont `last_result != "patched"` — chaque skip produit une ligne :
   ```
   [<id>] skip (last_result != 'patched')
   ```
@@ -356,27 +312,27 @@ usage: patch-system rollback [-h] [--dry-run] [--yes] [--all] [--stop-on-fail] [
   rollback --all: <N> reverted, <M> skipped, <K> failed
   ```
 
+**Exemples**
+```bash
+./scripts/patch-system rollback <id>
+./scripts/patch-system rollback <id> --dry-run
+./scripts/patch-system rollback --all
+./scripts/patch-system rollback --all --stop-on-fail
+```
+
 **Exit codes**
 
 | Cas | Exit |
 |---|---|
-| Tout reverted ou skippé | `0` |
-| Au moins un échec, sans `--stop-on-fail` | `1` |
-| Premier échec avec `--stop-on-fail` | `1` |
+| Succès (incluant skips avec `--all`) | `0` |
+| Refus (garde-fou `last_result` ou `git apply --reverse` en erreur), ou `--all` avec au moins un échec | `1` |
 
-### 1.7 Commandes à venir (non opérationnelles en J8)
+### 1.7 Commande restant à venir
 
-> **`verify` (jalon J9)**, **`refresh` (jalon J10)**, **`record` (jalon J11)**
-> sont **présentes dans le parser argparse mais retournent un exit code non
-> nul et un message « not yet implemented »** :
->
-> - `verify` : sur registre vide, exit `0` avec warning ; sinon exit `1` avec
->   `"Phase 3 verify not yet implemented — jalons 9/10. (N record(s) would be
->   checked.)"` sur stderr.
-> - `refresh <id>` : exit `2`, message `"patch-system: command 'refresh' not
->   yet implemented (design §7 — jalon 10)"`.
-> - `record <id> [--from PATH]` : exit `2`, message `"patch-system: command
->   'record' not yet implemented (design §7 — jalon 11)"`.
+> **`record` (jalon J12)** est présente dans le parser argparse mais
+> retourne exit code `2` avec le message
+> `"patch-system: command 'record' not yet implemented (design §7 —
+> jalon 12)"` sur stderr.
 >
 > Se référer à [explanation.md](./explanation.md) pour la conception prévue.
 
@@ -604,8 +560,8 @@ la **même anomalie** (design §5.1). Exemple (tiré design §3.2) :
 
 La **stratégie d'exécution** (détection, méthode d'apply, args) vit dans un
 fichier séparé `patches/runtime.json` (schéma §3.3 design, ADR-0002). Elle
-n'impacte pas l'identité des patches et n'est pas abordée ici — non consommée
-par les commandes J1-J8.
+n'impacte pas l'identité des patches — schéma complet en
+[§7](#7-schéma-runtimejson-j14) (consommée par `apply` / `rollback` depuis J14).
 
 ---
 
@@ -653,16 +609,21 @@ Source autoritaire : `docs/260420-patch-system-design.md §5.7`.
 
 ### 4.1 Commandes qui prennent le lock
 
-- `apply`
-- `rollback`
-- `refresh` (stub, le lock est pris même si l'exécution échoue)
-- `record` (stub, idem)
+- `apply` (y compris `apply --all` : un seul `flock` pour toute la run)
+- `rollback` (y compris `rollback --all` : un seul `flock`)
+- `refresh`
+- `record` (stub — le lock est pris même si l'exécution échoue avec exit `2`)
 
 ### 4.2 Commandes qui ne prennent PAS le lock (cité verbatim §5.7)
 
 > **Read-only operations non verrouillees** : `status`, `describe`,
 > `diff`, `list`, `verify --read-only` — l'utilisateur peut consulter
 > l'etat pendant qu'un apply tourne.
+
+> **Note J9** : le flag `verify --read-only` cité par le design §5.7 n'est
+> pas présent dans le parser argparse (cf. §1.8). `verify` est de facto
+> toujours read-only — il n'écrit ni `series.json` ni le working tree —
+> donc le flag n'a jamais été nécessaire en pratique.
 
 ### 4.3 Comportement du `flock`
 

@@ -131,21 +131,23 @@ La sortie détaille chaque target avec `baseline` / `patched` / `observed`
 ./scripts/patch-system diff <id>
 ```
 
-Étape 4 : décider. En jalon J8 actuel, trois options :
+Options de résolution :
 
 - Si le drift est **cosmétique** (blank-line upstream, re-indentation) : la
   détection composite aura déjà promu l'état en `clean` ou `patched` (voir
   [reference.md §3](./reference.md#3-états-de-détection)). Pas d'action
   requise.
-- Si le drift est **sémantique** (hunk rejeté) et qu'un seul hunk est
-  en cause : `--interactive` ou `--force` arbitreraient — **non encore
-  implémentés** (jalons 12/14). En attendant, correction manuelle dans le
-  working tree puis `refresh` (J10) quand disponible.
+- Si le drift est **sémantique** (hunk rejeté) : utiliser `--interactive`,
+  `--force` ou `--auto-3way` (voir recette « Comment arbitrer un conflit
+  (mode interactif, `--force`, `--auto-3way`) ? » plus bas).
+- Si les SHAs enregistrés sont simplement désuets après un
+  `git submodule update` : voir recette « Comment rafraîchir les SHAs
+  après un `git submodule update` ? » (`refresh <id>`).
 - Si vous voulez juste ignorer : laissez tel quel, le record reste `partial`
   au `status`, rien ne se cassera.
 
-> Source : docs/260420-patch-system-design.md §4.2 (mode interactif à venir
-> — J12) et §5.5 (escalade vs 3-way auto).
+> Source : docs/260420-patch-system-design.md §4.2 (menu d'arbitrage) et
+> §5.5 (escalade vs 3-way auto).
 
 ---
 
@@ -215,13 +217,14 @@ Marche à suivre :
 2. Relancer un `status` — la détection composite va arbitrer entre
    `cosmetic` (acceptable) et `semantic` (conflit réel). Regarder
    `drift_hint` dans `describe --json`.
-3. Si le conflit est sémantique : pas d'auto-résolution en J8. Options :
+3. Si le conflit est sémantique, trois options :
    - Éditer manuellement le fichier cible pour qu'il revienne à une baseline
      compatible, puis retry `apply`.
-   - Régénérer le patch (`record`, J11) depuis l'état voulu (pas encore
+   - Régénérer le patch (`record`, J12) depuis l'état voulu (pas encore
      implémenté).
-   - Attendre les jalons 12 (mode interactif, menu y/n/s/d/3/r/q/?) et 14
-     (`--force` + fallback `patch(1)` + `--auto-3way`).
+   - Utiliser `--interactive`, `--force` ou `--auto-3way` (voir recette
+     « Comment arbitrer un conflit (mode interactif, `--force`,
+     `--auto-3way`) ? » plus bas).
 4. Les exit codes UNIX retournés (design §4.1) : `0` succès, `1` échec
    opérationnel, `2` argv invalide, `3` registre invalide.
 
@@ -376,7 +379,7 @@ Les records déjà dans l'état `patched` sont comptés dans `skipped`
 (idempotence). Un unique `flock` est posé pour toute la run ; les
 lectures (`list`, `status`, `verify`) restent utilisables en parallèle.
 
-Détails : [reference.md §1.5bis](./reference.md#15bis-options-batch-et-interactives-de-apply-j12-j14).
+Détails : [reference.md §1.5](./reference.md#15-apply).
 
 ---
 
@@ -462,7 +465,7 @@ avec le message canonique §4.3 :
 ```
 
 Détails du menu et exit codes :
-[reference.md §1.5bis](./reference.md#15bis-options-batch-et-interactives-de-apply-j12-j14).
+[reference.md §1.5](./reference.md#15-apply).
 
 ---
 

@@ -55,9 +55,9 @@ log:
   rationale: ''
 - agent: "kiss-orchestrator"
   claude_session: "0b01c58c-c428-4cc6-92aa-9cf5ecf773e1"
-  timestamp: "2026-04-21T08:15:41Z"
-  task: "Délégation kiss-verificator — Step 2 : revue GLOBALE doc complète (J8 existant + ajouts J9-J15)"
-  result: "En cours — WIP commit 417eeee. Délégué à kiss-verificator avec demande explicite d'analyser la cohérence globale et de détecter les incohérences J8↔ajouts (effet patchwork à éviter)."
+  timestamp: "2026-04-21T13:23:15Z"
+  task: "Délégation kiss-executor — Step 3 : rework REV-0001 (11 MUST FIX + 3 SHOULD FIX + 2 NICE-TO-HAVE, effort=high)"
+  result: "En cours — WIP commit 4fbf652. Délégation comprehensive : MUST FIX (contradictions J8↔ajouts + gap numérotation) + SHOULD FIX (menu s/d fallback, exit §1.5bis, note §4.2) + NICE-TO-HAVE (tutorial étape 10, consolidation §1.5bis→§1.5)."
   children:
     - agent: "kiss-executor"
       claude_session: "kiss-executor-20260421-072517"
@@ -70,4 +70,10 @@ log:
       timestamp: "2026-04-21T08:20:48Z"
       task: "Review globale doc complète scripts/docs/ (J8 + ajouts J9-J15) — couverture, Diataxis, cohérence, exactitude"
       result: "Verdict: needs-rework. Couverture J9-J15 complète et Diataxis respecté. MAIS 11 contradictions factuelles J8↔ajouts (sections 'non implémenté' obsolètes dans ref §1.0/§1.5/§1.7/§2.5/§4.1, how-to diagnose, explanation §2.3/§4) + gap numérotation explanation §6→§8. 3 SHOULD FIX (menu s/d fallback, formulation exit code §1.5bis, note §4.2 --read-only). Tutorial intact validé. REV-0001 enregistré."
+      children: []
+    - agent: "kiss-executor"
+      claude_session: "kiss-executor-rework-20260421-072517"
+      timestamp: "2026-04-21T13:34:36Z"
+      task: "Step 3 — Rework REV-0001 (11 MF + 3 SF + 2 NH, effort=high)"
+      result: "Tous les 16 items traités. reference.md : §1.5/§1.6/§1.7 consolidés (bis supprimés, contradictions éliminées, menu s/d fallback noté, exit mutex §1.5 direct), §1.0 help à jour, §2.5 runtime pointer, §4.1 flock unifié, §4.2 note --read-only. explanation.md : §2.3 et §4 blocs J8 obsolètes supprimés, renumérotation §7-§10 monotone (+ sous-sections). how-to.md : diagnose partial/dirty et git-apply-fails mis à jour, J11→J12, anchors #15bis→#15-apply. tutorial.md : étape 10 apply --all ajoutée avec pédagogie fixture. README.md : Statut bloc unifié J1-J15 (plus de duplication), cross-refs explanation §7/§8/§9 corrigés. Bis sections : 0 occurrence. Anchors vérifiés (#15-apply, #16-rollback, #18-verify-j9, #19-refresh-j10, #7-schéma-runtimejson-j14). Aucune incohérence résiduelle détectée."
       children: []

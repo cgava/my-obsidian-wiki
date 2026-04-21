@@ -296,6 +296,52 @@ protège contre un rollback accidentel d'un patch qui n'est pas dans l'état
 supposé. Le flag `--force` (design §4.1) permettra un jour d'outrepasser, mais
 il n'est pas encore implémenté (jalon 14).
 
+## Étape 10 — Régénérer toute la série avec `apply --all`
+
+Jusqu'ici vous avez joué avec **un record**. En production, le cas
+canonique est différent : après un `git submodule update`, le vendor est
+reset à l'upstream pristine, et **tous** les patches locaux doivent être
+ré-appliqués. D'où :
+
+```bash
+./scripts/patch-system apply --all
+```
+
+Sortie typique sur notre fixture (après avoir rollback t0001 à l'étape 8,
+les autres records sont toujours `clean`) :
+
+```
+[t0001-readme-add-section] clean -> applying...
+  target(s) patched -> state=patched
+  registry updated: last_result=patched last_applied=2026-04-20T14:36:02Z
+[t0002-cmd1-fix-typo] clean -> applying...
+  target(s) patched -> state=patched
+  registry updated: last_result=patched last_applied=2026-04-20T14:36:02Z
+[t0003-cmd2-drifted] clean -> applying...
+  target(s) patched -> state=patched
+  registry updated: last_result=patched last_applied=2026-04-20T14:36:02Z
+[t0004-cmd2-semantic-drift] partial -> ambiguous state.
+  ERROR: --yes mode forbids interactive arbitration.
+  Rerun with --interactive to resolve, or --force to overwrite.
+apply --all: 3 applied, 0 skipped, 1 failed
+```
+
+**Observation** : les records sont joués par `order` croissant. Un unique
+`flock` couvre toute la run. Sans `--stop-on-fail`, la boucle continue et
+cumule les erreurs ; le résumé final distingue `applied` / `skipped`
+(idempotence) / `failed`. L'exit code est `1` parce que `t0004` a échoué.
+Voir [reference.md §1.5](./reference.md#15-apply) pour tous les flags.
+
+En symétrique, `rollback --all` pop la pile par ordre décroissant :
+
+```bash
+./scripts/patch-system rollback --all
+```
+
+Les records dont `last_result != "patched"` sont silencieusement skippés
+dans ce mode batch (protection équivalente au garde-fou simple de
+l'étape 9).
+
 ## Conclusion
 
 Vous savez maintenant :
@@ -306,6 +352,8 @@ Vous savez maintenant :
 - appliquer un patch (avec et sans `--dry-run`)
 - vérifier l'idempotence d'un deuxième `apply`
 - annuler avec `rollback`, et comprendre le garde-fou `last_result`
+- régénérer toute la série avec `apply --all` (et désempiler avec
+  `rollback --all`)
 
 Prochaines étapes :
 

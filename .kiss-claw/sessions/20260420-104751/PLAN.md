@@ -70,11 +70,15 @@ Plan détaillé 16 jalons en design §7. Groupement par livraison :
 - [x] J10 refresh : recalcul baseline/patched sha depuis l'état courant (après git pull vendor)
 - [x] J11 premier patch réel B3 (`vendor/.env` option B : OBSIDIAN_VAULT_PATH vide, subsume B4) + entrée series.json + README utilisateur (convention co-located §3.1)
 
-#### Jalons 12-16 — Interactif + all + fallback + intégration — TODO (hors batch courant)
-- [ ] J12 apply mode interactif (etc-update-like y/n/s/d/3/r/q/? §4.2)
-- [ ] J13 apply --all + rollback --all + --stop-on-fail
-- [ ] J14 fallback patch(1) + --auto-3way + runtime.json overrides
-- [ ] J15 patches B1/B2/B4 + p2-* ajout progressif
+#### Jalons 12-14 — Interactif + all + fallback — DONE (commit 00fe65d, 121 tests)
+- [x] J12 apply mode interactif (etc-update-like y/n/s/d/3/r/q/? §4.2)
+- [x] J13 apply --all + rollback --all + --stop-on-fail
+- [x] J14 fallback patch(1) + --auto-3way + runtime.json overrides (lève REV-0006 #2)
+
+#### Jalon 15 — Patches réels — DONE (commit 66f2f46, 5 patches + B4 obsolete)
+- [x] J15 patches B1/B2/B4 + p2-read-dotenv + p2-raw-in-vault ajout progressif
+
+#### Jalon 16 — Intégration CI — TODO (hors scope session)
 - [ ] J16 verify-in-CI (hook git ou .gitlab-ci.yml minimal)
 
 ### Phase 4 — Enregistrement anomalies vendor (subsumé dans J11-J15 Phase 3 si tout roule)
