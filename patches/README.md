@@ -3,7 +3,9 @@
 > **Audience** : maintainer of the super-repo who adds, removes, or
 > inspects anomalies tracked against the vendored obsidian-wiki skills.
 > For day-to-day usage (how to run the CLI, what each state means),
-> see `scripts/docs/` (tutorial / how-to / reference / explanation).
+> see the `patch-system` skill at `.claude/skills/patch-system/`
+> (SKILL.md entry + `references/` with tutorial / how-to / reference /
+> explanation).
 
 ## Layout (design §3.1 — verbatim)
 
@@ -71,9 +73,9 @@ derived.
    `audit_ref, last_applied, last_result, notes`.
 6. **Validate.** Run :
    ```
-   scripts/patch-system verify
-   scripts/patch-system status
-   scripts/patch-system apply <id> --dry-run
+   .claude/skills/patch-system/scripts/patch-system verify
+   .claude/skills/patch-system/scripts/patch-system status
+   .claude/skills/patch-system/scripts/patch-system apply <id> --dry-run
    ```
    - `verify` recomputes `patch_sha256` and checks target coherence.
    - `status` confirms the initial state is `clean` (pre-patch).
@@ -95,7 +97,7 @@ moved to `patches/archive/` and their record flips to
 3. Update `patch_file` to `"archive/NNNN-slug.patch"` (or leave it
    pointing at the archived path — the dispatcher prefixes
    `patches_dir`).
-4. Run `scripts/patch-system verify` to confirm nothing else references
+4. Run `.claude/skills/patch-system/scripts/patch-system verify` to confirm nothing else references
    the archived record.
 5. Commit the move.
 
@@ -167,11 +169,11 @@ deviation inline (`Description:` block).
 
 ### Detection of gitignored targets
 
-`scripts/patch-system status` detects the state correctly for
+`patch-system status` detects the state correctly for
 gitignored files — the sha-256-based detector in
-`scripts/patch_system/detect.py` does not require the file to be
-git-tracked. Only the `apply` / `rollback` paths currently require
-`--index` and therefore a tracked file.
+`.claude/skills/patch-system/scripts/patch_system/detect.py` does not
+require the file to be git-tracked. Only the `apply` / `rollback` paths
+currently require `--index` and therefore a tracked file.
 
 ## Related docs
 
@@ -179,5 +181,5 @@ git-tracked. Only the `apply` / `rollback` paths currently require
 - `docs/260418-dual-sensitivity-analysis.md` — audit of anomalies.
 - `docs/adr/ADR-0001-vendor-submodule-pristine.md` — why the vendor
   tree stays pristine.
-- `scripts/docs/tutorial.md`, `how-to.md`, `reference.md`,
-  `explanation.md` — user-facing docs.
+- `.claude/skills/patch-system/references/{tutorial,how-to,reference,explanation}.md`
+  — user-facing docs (Diataxis).

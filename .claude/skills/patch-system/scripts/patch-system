@@ -1,21 +1,51 @@
 #!/usr/bin/env bash
 # patch-system — bash dispatcher for the Python patch_system package.
 #
-# Thin CLI shim : exports PATCH_SYSTEM_ROOT and delegates argv to
+# Thin CLI shim : resolves PATCH_SYSTEM_ROOT and delegates argv to
 # `python3 -m patch_system`. Mutating subcommands (apply / rollback /
 # refresh / record) acquire a flock on `patches/.lock` per design §5.7.
 # Read-only subcommands (list, status, describe, diff, verify --read-only)
 # do NOT take the lock — they are safe to run concurrently with a mutating
 # operation.
 #
+# Root resolution (layered, first match wins) :
+#   1. ${PATCH_SYSTEM_ROOT}    explicit override
+#   2. walk up from $(pwd) looking for patches/series.json
+#   3. git rev-parse --show-toplevel
+#   4. $(pwd)                  last resort
+#
 # See docs/260420-patch-system-design.md §2.2 + §5.7.
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-export PATCH_SYSTEM_ROOT="${PATCH_SYSTEM_ROOT:-${PROJECT_ROOT}}"
+_resolve_root() {
+    if [[ -n "${PATCH_SYSTEM_ROOT:-}" ]]; then
+        echo "${PATCH_SYSTEM_ROOT}"
+        return
+    fi
+
+    local dir
+    dir="$(pwd)"
+    while [[ "$dir" != "/" ]]; do
+        if [[ -f "$dir/patches/series.json" ]]; then
+            echo "$dir"
+            return
+        fi
+        dir="$(dirname "$dir")"
+    done
+
+    local git_root
+    if git_root="$(git rev-parse --show-toplevel 2>/dev/null)"; then
+        echo "$git_root"
+        return
+    fi
+
+    pwd
+}
+
+export PATCH_SYSTEM_ROOT="$(_resolve_root)"
 
 # Make scripts/ dir importable so `python3 -m patch_system` resolves.
 export PYTHONPATH="${SCRIPT_DIR}${PYTHONPATH:+:${PYTHONPATH}}"
@@ -65,6 +95,15 @@ PATCHES_DIR="${PATCH_SYSTEM_ROOT}/patches"
 LOCK_FILE="${PATCHES_DIR}/.lock"
 
 if _is_mutating_cmd "$@"; then
+    # Refuse to create patches/ in an implausible root — avoids silently
+    # scaffolding into a wrong directory when cwd is outside any project.
+    if [[ ! -d "${PATCH_SYSTEM_ROOT}/.git" && ! -f "${PATCH_SYSTEM_ROOT}/patches/series.json" ]]; then
+        echo "patch-system: cannot resolve project root (no .git, no patches/series.json found)" >&2
+        echo "  tried from: $(pwd)" >&2
+        echo "  resolved:   ${PATCH_SYSTEM_ROOT}" >&2
+        echo "  hint: set PATCH_SYSTEM_ROOT=/path/to/project" >&2
+        exit 2
+    fi
     # Create the patches/ dir + lock file if missing so flock has a target.
     mkdir -p "${PATCHES_DIR}"
     : > "${LOCK_FILE}"

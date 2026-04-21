@@ -522,8 +522,8 @@ avoir à identifier manuellement les records concernés.
 
 ## §10. Lectures complémentaires
 
-- Design complet : [`../../docs/260420-patch-system-design.md`](../../docs/260420-patch-system-design.md)
-- État de l'art : [`../../docs/260420-patch-system-soa.md`](../../docs/260420-patch-system-soa.md)
-- ADR-0001 (vendor strategy) : [`../../docs/adr/ADR-0001-vendor-submodule-pristine.md`](../../docs/adr/ADR-0001-vendor-submodule-pristine.md)
-- ADR-0002 (series/runtime split) : [`../../docs/adr/ADR-0002-registre-runtime-separation.md`](../../docs/adr/ADR-0002-registre-runtime-separation.md)
-- Audit d'origine : `../../docs/260418-dual-sensitivity-analysis.md` (B1-B4, p2-*)
+- Design complet : [`../../../../docs/260420-patch-system-design.md`](../../../../docs/260420-patch-system-design.md)
+- État de l'art : [`../../../../docs/260420-patch-system-soa.md`](../../../../docs/260420-patch-system-soa.md)
+- ADR-0001 (vendor strategy) : [`../../../../docs/adr/ADR-0001-vendor-submodule-pristine.md`](../../../../docs/adr/ADR-0001-vendor-submodule-pristine.md)
+- ADR-0002 (series/runtime split) : [`../../../../docs/adr/ADR-0002-registre-runtime-separation.md`](../../../../docs/adr/ADR-0002-registre-runtime-separation.md)
+- Audit d'origine : `../../../../docs/260418-dual-sensitivity-analysis.md` (B1-B4, p2-*)

@@ -21,12 +21,23 @@ import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
 
-_REPO_ROOT = Path(__file__).resolve().parent.parent
-_SCRIPTS_DIR = _REPO_ROOT / "scripts"
+_SKILL_ROOT = Path(__file__).resolve().parent.parent
+_SCRIPTS_DIR = _SKILL_ROOT / "scripts"
 if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
 from patch_system import cli  # noqa: E402
+
+
+def _project_root() -> Path:
+    try:
+        out = subprocess.check_output(
+            ["git", "rev-parse", "--show-toplevel"],
+            stderr=subprocess.DEVNULL,
+        )
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return Path.cwd()
+    return Path(out.decode().strip())
 
 
 class TestB3RuntimeOverride(unittest.TestCase):
@@ -35,7 +46,8 @@ class TestB3RuntimeOverride(unittest.TestCase):
             self.skipTest("patch(1) not installed")
         # Also skip if vendor tree isn't present (fresh clone without
         # submodules).
-        vendor = _REPO_ROOT / "vendor" / "obsidian-wiki"
+        self._proj = _project_root()
+        vendor = self._proj / "vendor" / "obsidian-wiki"
         if not vendor.exists():
             self.skipTest("vendor/obsidian-wiki not checked out")
         env_file = vendor / ".env"
@@ -47,8 +59,8 @@ class TestB3RuntimeOverride(unittest.TestCase):
         the ``patch(1)`` fallback which bypasses ``--index``.
         """
         argv = [
-            "--series", str(_REPO_ROOT / "patches" / "series.json"),
-            "--vendor-root", str(_REPO_ROOT / "vendor" / "obsidian-wiki"),
+            "--series", str(self._proj / "patches" / "series.json"),
+            "--vendor-root", str(self._proj / "vendor" / "obsidian-wiki"),
             "apply", "b3-vendor-env-remove", "--dry-run",
         ]
         buf = io.StringIO()
