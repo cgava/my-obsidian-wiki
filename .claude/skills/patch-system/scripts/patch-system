@@ -2,11 +2,17 @@
 # patch-system — bash dispatcher for the Python patch_system package.
 #
 # Thin CLI shim : resolves PATCH_SYSTEM_ROOT and delegates argv to
-# `python3 -m patch_system`. Mutating subcommands (apply / rollback /
-# refresh / record) acquire a flock on `patches/.lock` per design §5.7.
-# Read-only subcommands (list, status, describe, diff, verify --read-only)
-# do NOT take the lock — they are safe to run concurrently with a mutating
-# operation.
+# `python3 -m patch_system`. The flock on `patches/.lock` for mutating
+# subcommands (apply / rollback / refresh / record) is owned by the Python
+# layer (see patch_system/cli.py::_advisory_lock) — the shim never takes
+# the lock itself, otherwise `exec python3` would inherit the held fd and
+# Python's own fcntl.flock() on a second fd opened on the same file would
+# deadlock against the inherited lock (Linux flock semantics: one OFD with
+# LOCK_EX blocks LOCK_EX on a sibling OFD, even same-process).
+#
+# The shim still performs an early root-plausibility check for mutating
+# subcommands so we fail loudly instead of scaffolding `patches/` into a
+# wrong directory.
 #
 # Root resolution (layered, first match wins) :
 #   1. ${PATCH_SYSTEM_ROOT}    explicit override
@@ -91,9 +97,6 @@ _is_mutating_cmd() {
     esac
 }
 
-PATCHES_DIR="${PATCH_SYSTEM_ROOT}/patches"
-LOCK_FILE="${PATCHES_DIR}/.lock"
-
 if _is_mutating_cmd "$@"; then
     # Refuse to create patches/ in an implausible root — avoids silently
     # scaffolding into a wrong directory when cwd is outside any project.
@@ -103,15 +106,6 @@ if _is_mutating_cmd "$@"; then
         echo "  resolved:   ${PATCH_SYSTEM_ROOT}" >&2
         echo "  hint: set PATCH_SYSTEM_ROOT=/path/to/project" >&2
         exit 2
-    fi
-    # Create the patches/ dir + lock file if missing so flock has a target.
-    mkdir -p "${PATCHES_DIR}"
-    : > "${LOCK_FILE}"
-    # fd 9 scoped to this script; -n = non-blocking, fail fast on contention.
-    exec 9>"${LOCK_FILE}"
-    if ! flock -n 9; then
-        echo "patch-system: another mutating operation is in progress (lock: ${LOCK_FILE})" >&2
-        exit 1
     fi
 fi
 

@@ -3,32 +3,98 @@
     {
       "id": "20260415-075913",
       "created": "2026-04-15T07:59:13",
-      "status": "in_progress",
-      "title": ""
+      "status": "done",
+      "title": "",
+      "closed": "2026-04-21T16:45:00+02:00",
+      "summary": {
+        "need": "Session créée le 2026-04-15 sans suite — INIT non complété, aucun plan ni CHECKPOINT rédigés.",
+        "outcome": "Aucun livrable. Session abandonnée.",
+        "files_changed": [],
+        "decisions": [],
+        "next": "none"
+      }
     },
     {
       "id": "20260416-180815",
       "created": "2026-04-16T18:08:15",
-      "status": "in_progress",
+      "status": "done",
       "title": "Obsidian Link Fixer"
     },
     {
       "id": "20260419-081905",
       "created": "2026-04-19T08:19:05",
-      "status": "in_progress",
+      "status": "done",
       "title": "my-obsidian-wiki — Mise en production VPS"
     },
     {
       "id": "20260420-104751",
       "created": "2026-04-20T10:47:51",
-      "status": "in_progress",
-      "title": "obsidian-wiki Vendor Patch System"
+      "status": "done",
+      "title": "obsidian-wiki Vendor Patch System",
+      "closed": "2026-04-21T16:45:00+02:00",
+      "summary": {
+        "need": "Construire un système de patches local pour corriger les anomalies du vendor obsidian-wiki non-forkable : self-documenting, détectable par état (clean/patched/partial/dirty), appliqué interactivement, réversible, survivant aux git pull vendor. Inspiré état de l'art packagers open source (quilt/DEP-3/etc-update).",
+        "outcome": "Phases 1-3 livrées (15/16 jalons ; J16 CI reporté). P1 SOA 9 topics (34c482b). P2 design 783l + ADR-0001 + ADR-0002 (c164ad4+52bc7f8). P3 framework Python 3.10+ stdlib : J1-J4 squelette/registre/fixtures/detect sha256 (a3bf296, 31 tests), J5-J8 detect composite/apply/rollback/CLI (a804caf, 67 tests), J9-J11 verify/refresh/pilote B3 + README mainteneur (631cbd1, 86 tests), J12-J14 interactif etc-update-like/--all/fallback patch(1)/runtime.json (00fe65d, 121 tests), J15 patches réels B1/B2/B4-obsolete/p2-read-dotenv/p2-raw-in-vault (66f2f46). Doc Diataxis J8 initiale (cf2cc5a), puis convertie en skill patch-system (564044a).",
+        "files_changed": [
+          "scripts/patch-system",
+          "scripts/patch_system/*.py (9 modules)",
+          "tests/test_*.py (12 suites, 121 tests)",
+          "patches/series.json",
+          "patches/runtime.json",
+          "patches/README.md",
+          "patches/0001..0006-*.patch (5 actifs + 1 obsolete)",
+          "tests/fixtures/vendor-mini + vendor-mini-patched",
+          "scripts/docs/{README,tutorial,how-to,reference,explanation}.md",
+          "docs/260420-patch-system-{soa,design}.md",
+          "docs/adr/ADR-000{1,2}-*.md",
+          ".claude/skills/patch-system/** (skill)"
+        ],
+        "decisions": [
+          "Architecture file-per-patch quilt-like + registre JSON co-located patches/series.json",
+          "Python 3.10+ stdlib zero-dep (pas de pip)",
+          "Submodule pristine + régénération (ADR-0001)",
+          "Séparation series.json (versionné) / runtime.json (local) (ADR-0002)",
+          "DEP-3 enrichi avec préfixe X-* dans headers (RFC 6648 nuancé)",
+          "flock obligatoire sur toutes les ops mutantes (§5.7)",
+          "Escalade user par défaut en cas de drift upstream ; --auto-3way opt-in CI",
+          "unittest stdlib (pas de pytest)",
+          "B3 : option B (blank OBSIDIAN_VAULT_PATH) retenue — .env gitignored donc pas supprimable, subsume B4",
+          "Convention patches/series.json + patches/*.patch co-located (vs layout fixtures)",
+          "Doc utilisateur Diataxis convertie en skill Claude pour distribution"
+        ],
+        "next": [
+          "J16 verify-in-CI (hook git ou gitlab-ci.yml) — reporté",
+          "Phase 4 validation E2E : vendor vierge / partiellement patché / réinitialisé après git pull",
+          "4 notes REV-0008 différées : verify output B2 drift contradictoire avec all-ok, limitation dry-run B1→B2 composition-dependent non documentée, stale patches/.lock bloquant récurrent, test multi-target e2e",
+          "REV-0006 #1 SHOULD FIX : test multi-target asymétrie evaluate()"
+        ]
+      }
     },
     {
       "id": "20260421-072517",
       "created": "2026-04-21T07:25:17",
-      "status": "in_progress",
-      "title": "Doc Diataxis patch-system — complétion J9-J15"
+      "status": "done",
+      "title": "Doc Diataxis patch-system — complétion J9-J15",
+      "closed": "2026-04-21T16:45:00+02:00",
+      "summary": {
+        "need": "Étendre (pas réécrire) la doc Diataxis de scripts/docs/ pour couvrir les évolutions patch-system livrées après J8 (J9-J15 : verify, refresh, apply interactif, --all, fallback patch(1), runtime.json, patches réels), en préservant la cohérence globale des 4 piliers Diataxis et éviter l'effet patchwork.",
+        "outcome": "Cycle unique executor→verificator→executor exécuté. Step 1 executor : 4/5 fichiers scripts/docs/ augmentés (reference +§1.5bis apply flags J12-J14, §1.6bis rollback --all, §1.8 verify, §1.9 refresh, §7 runtime.json ; how-to +6 recettes ; explanation +§8 runtime +§9 verify/refresh +§10 batch --all + renum §7→§11 ; README étendu ; tutorial intact) — commit 417eeee. Step 2 verificator REV-0001 : verdict needs-rework — 11 contradictions J8↔ajouts + gap numérotation §6→§8 + 3 SHOULD FIX + 2 NICE-TO-HAVE — commit 4fbf652. Step 3 executor rework : 16/16 items traités (sections bis supprimées et consolidées §1.5/§1.6/§1.7, blocs obsolètes §2.3/§4 retirés, renum §7-§10 monotone, tutorial étape 10 apply --all ajoutée, README statut unifié J1-J15, cross-refs corrigés) — commit 5d38a18.",
+        "files_changed": [
+          "scripts/docs/README.md",
+          "scripts/docs/tutorial.md",
+          "scripts/docs/how-to.md",
+          "scripts/docs/reference.md",
+          "scripts/docs/explanation.md"
+        ],
+        "decisions": [
+          "Option A : executor audit + rédige en une seule délégation (vs 2 étapes séparées)",
+          "Verificator analyse la doc COMPLÈTE (J8+ajouts) pour cohérence globale — peut remonter corrections touchant J8 existant",
+          "Corrections de cohérence J8 acceptables en rework : éviter effet patchwork prime sur principe 'non-réécriture'",
+          "Diataxis strict conservé : chaque ajout placé dans le bon pilier (tutorial / how-to / reference / explanation)",
+          "Langue FR et chemin scripts/docs/ inchangés"
+        ],
+        "next": "none"
+      }
     }
   ],
   "claude_sessions_path": "/home/omc/.claude/projects/-home-omc-workspace-my-obsidian-wiki"
